@@ -139,3 +139,11 @@ export function toCSV(rows, columns) {
   const body = rows.map((r) => columns.map((c) => csvCell(r[c])).join(","));
   return [head, ...body].join("\r\n");
 }
+
+// Builds the guest-facing invite link. base: PUBLIC_BASE_URL from config.js ("" means use the current page).
+// The link points at the site root, which GitHub Pages serves as index.html, so "index.html" is not shown.
+export function inviteLink(base, currentHref, code) {
+  const root = base && base.trim() ? base.trim() : new URL("./", currentHref).href;
+  const clean = root.replace(/[?#].*$/, "").replace(/index\.html$/, "").replace(/\/?$/, "/");
+  return clean + "?c=" + encodeURIComponent(code);
+}

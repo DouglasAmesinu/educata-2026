@@ -68,8 +68,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, collection, writeBatch, runTransaction, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { GROUP_PLAN, makeCode, makeGroupId, cryptoRand, toCSV } from "./core.js";
-import { FIREBASE_CONFIG } from "./config.js";
+import { GROUP_PLAN, makeCode, makeGroupId, cryptoRand, toCSV, inviteLink } from "./core.js";
+import { FIREBASE_CONFIG, PUBLIC_BASE_URL } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const app = initializeApp(FIREBASE_CONFIG);
@@ -80,7 +80,7 @@ const ord = (id) => { const i = GROUP_PLAN.findIndex((p) => p.id === id); return
 
 function say(text, bad) { const m = $("msg"); m.textContent = text; m.className = "msg" + (bad ? " bad" : ""); }
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
-const linkFor = (code) => new URL("index.html?c=" + code, location.href).href;
+const linkFor = (code) => inviteLink(PUBLIC_BASE_URL, location.href, code);
 
 $("signin").onclick = async () => {
   try { await signInWithEmailAndPassword(auth, $("em").value.trim(), $("pw").value); }
