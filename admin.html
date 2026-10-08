@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Educata 2026 admin</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root{--ink:#1B1535;--muted:#5B5675;--line:#cfc9e0;--paper:#EEEBF5;--accent:#D6336C;--bad:#B3261E;--ok:#1F7A4D}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  main{max-width:1100px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:26px;margin:0 0 4px} h2{font-size:18px;margin:28px 0 8px}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+  button,input{font:inherit}
+  button{padding:8px 12px;border:2px solid var(--ink);border-radius:8px;background:#fff;color:var(--ink);cursor:pointer}
+  button.pri{background:var(--accent);color:#fff}
+  button.danger{border-color:var(--bad);color:var(--bad)}
+  input[type=text],input[type=email],input[type=password],input[type=search]{padding:8px 10px;border:2px solid var(--line);border-radius:8px;min-width:220px}
+  button:focus-visible,input:focus-visible{outline:3px solid #F2B33D;outline-offset:2px}
+  table{width:100%;border-collapse:collapse;background:#fff;border:2px solid var(--ink)}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#e3def0}
+  .wrap{overflow-x:auto}
+  .full{color:var(--bad);font-weight:700} .ok{color:var(--ok);font-weight:700}
+  .msg{padding:10px 12px;border-left:6px solid var(--ink);background:#fff;margin:12px 0}
+  .msg.bad{border-color:var(--bad)}
+  .hidden{display:none}
+  code{background:#fff;border:1px solid var(--line);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Educata 2026 admin</h1>
+  <div id="msg" class="msg hidden" role="status"></div>
+
+  <section id="login">
+    <div class="bar">
+      <input type="email" id="em" placeholder="Admin email" autocomplete="username">
+      <input type="password" id="pw" placeholder="Password" autocomplete="current-password">
+      <button class="pri" id="signin">Sign in</button>
+    </div>
+  </section>
+
+  <section id="app" class="hidden">
+    <div class="bar"><span id="who"></span><button id="signout">Sign out</button><button id="reload">Refresh</button></div>
+
+    <div id="seedbox" class="msg hidden">
+      No seat groups exist yet.
+      <button class="pri" id="seed">Create the 22 seat groups and invite codes</button>
+    </div>
+
+    <h2>Seat groups and invite links</h2>
+    <div class="bar"><span id="totals"></span><button id="recon">Recount seats from registrations</button><button id="addgroup">Add group</button></div>
+    <div class="wrap"><table id="groups"><thead><tr><th>Group</th><th>Seats</th><th>Status</th><th>Invite link</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+
+    <h2>Registrations</h2>
+    <div class="bar">
+      <input type="search" id="q" placeholder="Search name, email, organisation, reference">
+      <button id="csv">Download CSV</button>
+      <span id="regcount"></span>
+    </div>
+    <div class="wrap"><table id="regs"><thead><tr><th>Reference</th><th>Name</th><th>Email</th><th>Group</th><th>Organisation</th><th>Phone</th><th>Checked in</th><th></th></tr></thead><tbody></tbody></table></div>
+  </section>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, getDocs, collection, writeBatch, runTransaction, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { GROUP_PLAN, makeCode, makeGroupId, cryptoRand, toCSV } from "./core.js";
+import { FIREBASE_CONFIG } from "./config.js";
+
+const $ = (id) => document.getElementById(id);
+const app = initializeApp(FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db = getFirestore(app);
+let groups = [], invites = {}, regs = [];
+const ord = (id) => { const i = GROUP_PLAN.findIndex((p) => p.id === id); return i < 0 ? 1e6 : i; };
+
+function say(text, bad) { const m = $("msg"); m.textContent = text; m.className = "msg" + (bad ? " bad" : ""); }
+const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
+const linkFor = (code) => new URL("index.html?c=" + code, location.href).href;
+
+$("signin").onclick = async () => {
+  try { await signInWithEmailAndPassword(auth, $("em").value.trim(), $("pw").value); }
+  catch (e) { say("Sign in failed: " + (e.code || e.message), true); }
+};
+$("signout").onclick = () => signOut(auth);
+$("reload").onclick = () => load();
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { $("login").classList.remove("hidden"); $("app").classList.add("hidden"); return; }
+  const a = await getDoc(doc(db, "admins", user.uid)).catch(() => null);
+  if (!a || !a.exists()) { say("This account is signed in but is not on the admin list. Ask the owner to add admins/" + user.uid + " in the Firebase console.", true); await signOut(auth); return; }
+  $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("who").textContent = user.email; say("Signed in.");
+  load();
+});
+
+async function load() {
+  const [gs, is, rs] = await Promise.all([getDocs(collection(db, "groups")), getDocs(collection(db, "invites")), getDocs(collection(db, "registrations"))]);
+  groups = gs.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => ord(a.id) - ord(b.id));
+  invites = {}; is.docs.forEach((d) => (invites[d.data().gid] = d.id));
+  regs = rs.docs.map((d) => ({ id: d.id, ...d.data() }));
+  $("seedbox").classList.toggle("hidden", groups.length > 0);
+  renderGroups(); renderRegs();
+}
+
+$("seed").onclick = async () => {
+  if (groups.length) return say("Groups already exist. Seeding refused so codes are not overwritten.", true);
+  const b = writeBatch(db); const used = new Set();
+  for (const g of GROUP_PLAN) {
+    let code; do { code = makeCode(cryptoRand); } while (used.has(code)); used.add(code);
+    b.set(doc(db, "groups", g.id), { name: g.name, category: g.category, cap: g.cap, count: 0, open: true, lastReg: "" });
+    b.set(doc(db, "invites", code), { gid: g.id });
+  }
+  try { await b.commit(); say("Created " + GROUP_PLAN.length + " groups."); load(); } catch (e) { say("Seeding failed: " + (e.code || e.message), true); }
+};
+
+function renderGroups() {
+  const tb = $("groups").tBodies[0]; tb.replaceChildren();
+  let taken = 0, cap = 0;
+  for (const g of groups) {
+    taken += g.count; cap += g.cap;
+    const tr = el("tr");
+    tr.append(el("td", g.name));
+    tr.append(el("td", `${g.count} / ${g.cap}`, g.count >= g.cap ? "full" : ""));
+    tr.append(el("td", !g.open ? "Closed by admin" : g.count >= g.cap ? "Full" : "Open", g.open && g.count < g.cap ? "ok" : "full"));
+    const code = invites[g.id]; const lk = el("td");
+    if (code) { const inp = el("input"); inp.type = "text"; inp.readOnly = true; inp.value = linkFor(code); inp.style.minWidth = "260px"; lk.append(inp); const cb = el("button", "Copy"); cb.onclick = async () => { await navigator.clipboard.writeText(inp.value); say("Copied link for " + g.name); }; lk.append(cb); }
+    else lk.textContent = "No code";
+    tr.append(lk);
+    const ac = el("td");
+    const tog = el("button", g.open ? "Close" : "Reopen"); tog.onclick = async () => { await updateDoc(doc(db, "groups", g.id), { open: !g.open }); load(); };
+    const cp = el("button", "Set cap"); cp.onclick = async () => { const v = parseInt(prompt("New cap for " + g.name + " (currently " + g.cap + "):", g.cap), 10); if (!Number.isInteger(v) || v < g.count || v > 500) return say("Cap must be a whole number from " + g.count + " to 500.", true); await updateDoc(doc(db, "groups", g.id), { cap: v }); load(); };
+    const rn = el("button", "Rename"); rn.onclick = async () => { const v = (prompt("Name for this group:", g.name) || "").trim(); if (!v) return; await updateDoc(doc(db, "groups", g.id), { name: v.slice(0, 100) }); load(); };
+    const dg = el("button", "Delete", "danger");
+    dg.onclick = async () => {
+      if (g.count > 0) return say("Cannot delete " + g.name + " while it has " + g.count + " registration(s). Remove them first.", true);
+      if (!confirm("Delete group " + g.name + " and its invite link? The link will stop working.")) return;
+      const b = writeBatch(db); b.delete(doc(db, "groups", g.id)); if (invites[g.id]) b.delete(doc(db, "invites", invites[g.id]));
+      try { await b.commit(); say("Deleted " + g.name); load(); } catch (e) { say("Delete failed: " + (e.code || e.message), true); }
+    };
+    ac.append(tog, " ", cp, " ", rn, " ", dg); tr.append(ac); tb.append(tr);
+  }
+  $("totals").textContent = `${taken} registered of ${cap} seats`;
+}
+
+function renderRegs() {
+  const q = $("q").value.trim().toLowerCase();
+  const nameOf = Object.fromEntries(groups.map((g) => [g.id, g.name]));
+  const rows = regs.filter((r) => !q || [r.name, r.email, r.org, r.ref].some((v) => (v || "").toLowerCase().includes(q)))
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  $("regcount").textContent = `${rows.length} shown, ${regs.length} total`;
+  const tb = $("regs").tBodies[0]; tb.replaceChildren();
+  for (const r of rows) {
+    const tr = el("tr");
+    [r.ref, r.name, r.email, nameOf[r.gid] || r.gid, r.org || "", r.phone || ""].forEach((v) => tr.append(el("td", v)));
+    const ci = el("td"); const cb = el("button", r.checkedIn ? "Checked in. Undo" : "Check in");
+    cb.onclick = async () => { await updateDoc(doc(db, "registrations", r.id), { checkedIn: !r.checkedIn }); r.checkedIn = !r.checkedIn; renderRegs(); }; // no full reload: a reload costs about 300 reads, and door check-in would burn the free daily quota
+    ci.append(cb); tr.append(ci);
+    const del = el("td"); const db_ = el("button", "Remove", "danger");
+    db_.onclick = async () => {
+      if (!confirm("Remove " + r.name + " and free their seat?")) return;
+      await runTransaction(db, async (tx) => {
+        const gRef = doc(db, "groups", r.gid); const g = (await tx.get(gRef)).data();
+        tx.delete(doc(db, "registrations", r.id)); tx.update(gRef, { count: Math.max(0, g.count - 1) });
+      });
+      load();
+    };
+    del.append(db_); tr.append(del); tb.append(tr);
+  }
+}
+$("q").oninput = renderRegs;
+
+$("addgroup").onclick = async () => {
+  const name = (prompt("Name of the new group:") || "").trim().slice(0, 100);
+  if (!name) return;
+  const cap = parseInt(prompt("Number of places for " + name + ":", "10"), 10);
+  if (!Number.isInteger(cap) || cap < 1 || cap > 500) return say("Places must be a whole number from 1 to 500.", true);
+  const gid = makeGroupId(name, cryptoRand), code = makeCode(cryptoRand);
+  const b = writeBatch(db);
+  b.set(doc(db, "groups", gid), { name, category: "Custom", cap, count: 0, open: true, lastReg: "" });
+  b.set(doc(db, "invites", code), { gid });
+  try { await b.commit(); say("Added " + name + ". Copy its link from the table."); load(); } catch (e) { say("Add failed: " + (e.code || e.message), true); }
+};
+
+$("recon").onclick = async () => {
+  const counts = {}; regs.forEach((r) => (counts[r.gid] = (counts[r.gid] || 0) + 1));
+  const b = writeBatch(db); let n = 0;
+  for (const g of groups) { const real = counts[g.id] || 0; if (real !== g.count) { b.update(doc(db, "groups", g.id), { count: real }); n++; } }
+  if (!n) return say("Seat counts already match registrations.");
+  await b.commit(); say("Corrected " + n + " group count(s)."); load();
+};
+
+$("csv").onclick = () => {
+  const nameOf = Object.fromEntries(groups.map((g) => [g.id, g.name]));
+  const rows = regs.map((r) => ({ ref: r.ref, name: r.name, email: r.email, phone: r.phone || "", org: r.org || "", group: nameOf[r.gid] || r.gid, checkedIn: r.checkedIn ? "yes" : "no" }));
+  const csv = toCSV(rows, ["ref", "name", "email", "phone", "org", "group", "checkedIn"]);
+  const a = el("a"); a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })); a.download = "educata-2026-registrations.csv"; a.click(); URL.revokeObjectURL(a.href);
+};
+</script>
+</body>
+</html>

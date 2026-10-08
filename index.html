@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Educata 2026 | Evening Event Registration</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B1535; --ink2:#2B1D57; --paper:#EEEBF5; --muted:#5B5675; --line:#cfc9e0;
+    --accent:#D6336C; --gold:#F2B33D; --bad:#B3261E; --card:#fff;
+    --display:Syne,"DM Sans",system-ui,sans-serif; --body:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.5 var(--body)}
+  a{color:inherit}
+  .hidden{display:none!important}
+
+  /* ---------- Hero: stage lights + camera viewfinder ---------- */
+  .hero{position:relative;overflow:hidden;background:radial-gradient(120% 90% at 50% 0%,var(--ink2) 0%,var(--ink) 62%);color:#fff;padding:44px 20px 112px}
+  .beams{position:absolute;inset:0;pointer-events:none}
+  .beam{position:absolute;top:-2%;height:112%;width:46%;transform-origin:50% 0;filter:blur(5px);
+    clip-path:polygon(47% 0,53% 0,100% 100%,0 100%)}
+  .beam.a{left:-6%;background:linear-gradient(to bottom,rgba(214,51,108,.7),rgba(214,51,108,0) 82%);transform:rotate(-17deg)}
+  .beam.b{left:27%;background:linear-gradient(to bottom,rgba(242,179,61,.55),rgba(242,179,61,0) 78%);transform:rotate(4deg)}
+  .beam.c{right:-8%;background:linear-gradient(to bottom,rgba(170,120,255,.55),rgba(170,120,255,0) 80%);transform:rotate(20deg)}
+  .hero::after{content:"";position:absolute;inset:0;background:radial-gradient(70% 45% at 50% 0%,rgba(255,255,255,.2),transparent 72%);pointer-events:none}
+  .hero-inner{position:relative;max-width:728px;margin:0 auto;text-align:left}
+  .presenter{margin:0 0 22px;font-weight:500;color:#d9d3ef;letter-spacing:.01em}
+  .frame{position:relative;padding:26px 24px 22px}
+  .frame i{position:absolute;width:26px;height:26px;border:3px solid var(--gold)}
+  .frame .tl{left:0;top:0;border-right:0;border-bottom:0}
+  .frame .tr{right:0;top:0;border-left:0;border-bottom:0}
+  .frame .bl{left:0;bottom:0;border-right:0;border-top:0}
+  .frame .br{right:0;bottom:0;border-left:0;border-top:0}
+  .rec{display:inline-flex;align-items:center;gap:9px;font-weight:700;font-size:15px;color:#fff;margin-bottom:6px}
+  .rec b{width:11px;height:11px;border-radius:50%;background:#ff3b5c;box-shadow:0 0 0 4px rgba(255,59,92,.25)}
+  h1{font:800 clamp(56px,16vw,104px)/.9 var(--display);letter-spacing:-.025em;margin:6px 0 0}
+  .lede{font-size:20px;margin:22px 0 18px;max-width:30ch;color:#f3effc}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;list-style:none;margin:0;padding:0}
+  .chips li{border:1.5px solid rgba(255,255,255,.45);border-radius:999px;padding:5px 13px;font-size:14.5px;font-weight:500;background:rgba(255,255,255,.07)}
+  .chips li.hl{border-color:var(--gold);color:var(--gold)}
+
+  @media (prefers-reduced-motion:no-preference){
+    .beam{animation:fadein 1.8s ease-out 1 both}
+    @keyframes fadein{from{opacity:0}to{opacity:1}}
+    .rec b{animation:blink 1.6s steps(2,jump-none) infinite}
+    @keyframes blink{50%{opacity:.25}}
+    .dot{transition:background .25s,border-color .25s}
+  }
+
+  /* ---------- Page body ---------- */
+  main{position:relative;max-width:640px;margin:-72px auto 0;padding:0 16px 24px}
+  .ticket{position:relative;background:var(--card);border:2px solid var(--ink);border-radius:18px;box-shadow:7px 7px 0 var(--ink)}
+  .stub{background:var(--ink);color:#fff;border-radius:15px 15px 0 0;padding:22px 24px 26px}
+  .stub small{display:block;color:#cfc8e8;font-size:14.5px;margin-bottom:2px}
+  .gname{font:800 clamp(24px,6.5vw,32px)/1.1 var(--display);margin:0}
+  .meter{display:flex;flex-wrap:wrap;gap:7px;margin:16px 0 10px}
+  .dot{width:15px;height:15px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:transparent}
+  .dot.taken{background:var(--gold);border-color:var(--gold)}
+  .seats{margin:0;font-weight:500;color:#fff;min-height:1.4em}
+  .legend{display:flex;gap:16px;font-size:13.5px;color:#cfc8e8;margin-top:6px}
+  .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;border:2px solid rgba(255,255,255,.7);vertical-align:-1px}
+  .legend .t::before{background:var(--gold);border-color:var(--gold)}
+  .perf{height:0;border-top:2px dashed var(--ink);opacity:.35;margin:0}
+  .body{padding:22px 24px 26px}
+  .body h2{font:700 22px/1.2 var(--display);margin:0 0 4px}
+  .hint{color:var(--muted);margin:0 0 6px;font-size:15.5px}
+
+  label{display:block;font-weight:700;margin:18px 0 6px}
+  label small{font-weight:400;color:var(--muted)}
+  input[type=text],input[type=email],input[type=tel]{width:100%;font:inherit;padding:13px 14px;border:2px solid var(--line);border-radius:11px;background:#fbfaff;color:var(--ink)}
+  input:focus,button:focus-visible,a:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-color:var(--ink)}
+  .err{color:var(--bad);font-size:15px;margin:6px 0 0}
+  .check{display:flex;gap:11px;align-items:flex-start;font-weight:400;margin-top:22px;font-size:15.5px}
+  .check input{margin-top:4px;width:20px;height:20px;flex:none;accent-color:var(--accent)}
+  button.primary{margin-top:24px;width:100%;font:700 18px var(--body);padding:16px;border:2px solid var(--ink);border-radius:13px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 4px 0 var(--ink);transition:transform .08s,box-shadow .08s}
+  button.primary:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+  button.primary:disabled{opacity:.65;cursor:wait}
+  button.ghost{font:700 16px var(--body);padding:11px 18px;border:2px solid var(--ink);border-radius:11px;background:#fff;color:var(--ink);cursor:pointer}
+  .banner{border-left:6px solid var(--bad);background:#fff4f3;padding:13px 15px;border-radius:8px;margin-bottom:6px}
+
+  /* confirmation */
+  .ref{font:800 clamp(22px,7vw,40px)/1 var(--display);letter-spacing:.04em;color:var(--gold);margin:6px 0 0;white-space:nowrap}
+  .who{font-weight:700;font-size:20px;margin:0}
+  .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0 0 6px}
+  .facts dt{color:var(--muted)} .facts dd{margin:0;font-weight:500;word-break:break-word}
+
+  @media (max-width:380px){.facts{grid-template-columns:1fr}.facts dd{margin-bottom:8px}}
+  /* status panels */
+  .notice{display:flex;gap:16px;align-items:flex-start}
+  .notice svg{flex:none;width:44px;height:44px}
+  .notice h2{margin-top:2px}
+  .skeleton{height:120px;border-radius:18px;border:2px dashed var(--line);display:grid;place-items:center;color:var(--muted)}
+  @media (prefers-reduced-motion:no-preference){.skeleton{animation:pulse 1.4s ease-in-out infinite}@keyframes pulse{50%{opacity:.5}}}
+
+  /* how it works */
+  .steps{list-style:none;counter-reset:s;margin:34px 0 0;padding:0;display:grid;gap:12px}
+  .steps li{counter-increment:s;align-content:start;display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:start;background:rgba(255,255,255,.65);border:2px solid var(--line);border-radius:14px;padding:14px 16px}
+  .steps li::before{content:counter(s);display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--ink);color:var(--gold);font:800 17px var(--display)}
+  .steps b{display:block}
+  .steps span{color:var(--muted);font-size:15.5px}
+  @media (min-width:700px){main{max-width:760px}.steps{grid-template-columns:repeat(3,1fr)}.steps li{grid-template-columns:1fr;gap:10px}}
+
+  footer{max-width:760px;margin:30px auto 0;padding:22px 20px 44px;border-top:2px solid var(--line);color:var(--muted);font-size:15px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  @media print{
+    body{background:#fff} .hero,.steps,footer,button,.noprint{display:none!important}
+    main{margin:0;padding:0} .ticket{box-shadow:none} .stub{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="beams" aria-hidden="true"><div class="beam a"></div><div class="beam b"></div><div class="beam c"></div></div>
+  <div class="hero-inner">
+    <p class="presenter">AHK Ghana presents</p>
+    <div class="frame">
+      <i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>
+      <span class="rec"><b></b>Content Creator Contest</span>
+      <h1>Educata<br>2026</h1>
+    </div>
+    <p class="lede">Evening Event Registration. Strictly by invitation.</p>
+    <ul class="chips">
+      <li>Evening event</li>
+      <li>One seat per invited guest</li>
+      <li id="eventline" class="hl hidden"></li>
+    </ul>
+  </div>
+</header>
+
+<main>
+  <section id="loading" aria-live="polite"><div class="skeleton">Checking your invitation...</div></section>
+
+  <section id="badcode" class="hidden">
+    <div class="ticket"><div class="body notice">
+      <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20" fill="#fff4f3" stroke="#B3261E" stroke-width="3"/><path d="M22 12v13M22 31v2" stroke="#B3261E" stroke-width="4" stroke-linecap="round"/></svg>
+      <div><h2>We could not verify this invitation</h2>
+      <p class="hint">The link is missing or incorrect. Use the exact link from your invitation, or contact the AHK Ghana team who invited you.</p></div>
+    </div></div>
+  </section>
+
+  <section id="unavailable" class="hidden">
+    <div class="ticket"><div class="body notice">
+      <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20" fill="#fff7e6" stroke="#B7791F" stroke-width="3"/><path d="M14 22h16" stroke="#B7791F" stroke-width="4" stroke-linecap="round"/></svg>
+      <div><h2 id="unavailable-title"></h2><p class="hint" id="unavailable-text"></p></div>
+    </div></div>
+  </section>
+
+  <section id="formwrap" class="hidden">
+    <div class="ticket">
+      <div class="stub">
+        <small>Your invitation</small>
+        <p class="gname" id="groupname"></p>
+        <div class="meter" id="meter" role="img" aria-label=""></div>
+        <p class="seats" id="seatsline"></p>
+        <div class="legend" aria-hidden="true"><span class="t">Taken</span><span>Free</span></div>
+      </div>
+      <div class="perf" aria-hidden="true"></div>
+      <div class="body">
+        <h2>Reserve your seat</h2>
+        <p class="hint">Four details and you are in. Each email address can register once.</p>
+        <div id="formerror" class="banner hidden" role="alert"></div>
+        <form id="regform" novalidate>
+          <label for="name">Full name</label>
+          <input type="text" id="name" name="name" autocomplete="name" maxlength="100" required>
+          <div class="err" id="err-name"></div>
+
+          <label for="org">Organisation</label>
+          <input type="text" id="org" name="org" autocomplete="organization" maxlength="120" required>
+          <div class="err" id="err-org"></div>
+
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="email" maxlength="200" required inputmode="email">
+          <div class="err" id="err-email"></div>
+
+          <label for="phone">Phone <small>(optional)</small></label>
+          <input type="tel" id="phone" name="phone" autocomplete="tel" maxlength="30">
+          <div class="err" id="err-phone"></div>
+
+          <label class="check" for="consent">
+            <input type="checkbox" id="consent" name="consent">
+            <span>I agree that AHK Ghana may store and use these details to organise this event and admit me at the door.</span>
+          </label>
+          <div class="err" id="err-consent"></div>
+
+          <button class="primary" id="submit" type="submit">Reserve my seat</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section id="done" class="hidden" aria-live="polite">
+    <div class="ticket">
+      <div class="stub">
+        <small>Admit one. Educata 2026</small>
+        <p class="who" id="donewho"></p>
+        <p class="ref" id="doneref"></p>
+      </div>
+      <div class="perf" aria-hidden="true"></div>
+      <div class="body">
+        <h2>Your seat is reserved</h2>
+        <dl class="facts">
+          <dt>Group</dt><dd id="donegroup"></dd>
+          <dt>Email</dt><dd id="doneemail"></dd>
+        </dl>
+        <p id="donetext" class="hint"></p>
+        <p id="donenote"></p>
+        <button class="ghost noprint" id="print" type="button">Print or save as PDF</button>
+      </div>
+    </div>
+  </section>
+
+  <ol class="steps noprint" aria-label="How it works">
+    <li><div><b>Register</b><span>Use the private link from your invitation. Seats are limited per group.</span></div></li>
+    <li><div><b>Keep your reference</b><span>Save or print the confirmation. Your seat is tied to your email address.</span></div></li>
+    <li><div><b>Show it at the door</b><span>Give your reference or email. Entry is strictly by invitation.</span></div></li>
+  </ol>
+</main>
+
+<footer class="noprint">
+  <span>AHK Ghana, Delegation of German Industry and Commerce in Ghana</span>
+  <a href="admin.html">Organizer sign-in</a>
+</footer>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc, onSnapshot, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { parseCode, availability, tryRegister, validateForm, cryptoRand } from "./core.js";
+import { FIREBASE_CONFIG, EVENT_LINE, EMAIL_ENABLED } from "./config.js";
+
+const $ = (id) => document.getElementById(id);
+const show = (id) => { for (const s of ["loading","badcode","unavailable","formwrap","done"]) $(s).classList.toggle("hidden", s !== id); };
+
+const app = initializeApp(FIREBASE_CONFIG);
+const db = getFirestore(app);
+const code = parseCode(location.search);
+let inviteGid = null;
+
+if (EVENT_LINE) { $("eventline").textContent = EVENT_LINE; $("eventline").classList.remove("hidden"); }
+
+function renderGroup(g) {
+  const a = availability(g);
+  $("groupname").textContent = g.name;
+  const m = $("meter"); m.replaceChildren();
+  for (let i = 0; i < g.cap; i++) { const d = document.createElement("span"); d.className = "dot" + (i < g.count ? " taken" : ""); m.appendChild(d); }
+  m.setAttribute("aria-label", `${g.count} of ${g.cap} seats taken`);
+  $("seatsline").textContent = a.state === "open" ? `${a.remaining} of ${g.cap} seats left for your group` : "";
+  if (a.state === "full") { $("unavailable-title").textContent = "All seats for your group are taken"; $("unavailable-text").textContent = "Registration for this group is closed because every seat has been claimed. If you think this is a mistake, contact the AHK Ghana team who invited you."; show("unavailable"); }
+  else if (a.state === "closed") { $("unavailable-title").textContent = "Registration is closed for your group"; $("unavailable-text").textContent = "Contact the AHK Ghana team who invited you if you need a seat."; show("unavailable"); }
+  else if (!$("done").classList.contains("hidden")) { /* stay on confirmation */ }
+  else show("formwrap");
+}
+
+async function boot() {
+  if (!code) return show("badcode");
+  try {
+    const inv = await getDoc(doc(db, "invites", code));
+    if (!inv.exists()) return show("badcode");
+    inviteGid = inv.data().gid;
+    onSnapshot(doc(db, "groups", inviteGid), (snap) => {
+      if (!snap.exists()) return show("badcode");
+      if (!$("done").classList.contains("hidden")) return; // keep showing the confirmation
+      renderGroup(snap.data());
+    }, () => show("badcode"));
+  } catch (e) {
+    $("unavailable-title").textContent = "Connection problem";
+    $("unavailable-text").textContent = "We could not reach the registration service. Check your internet connection and reload this page.";
+    show("unavailable");
+  }
+}
+
+const adapter = {
+  async getInvite(c) {
+    const s = await getDoc(doc(db, "invites", c));
+    return s.exists() ? { gid: s.data().gid } : null;
+  },
+  async commit({ gid, regId, regDoc }) {
+    const gRef = doc(db, "groups", gid);
+    const rRef = doc(db, "registrations", regId);
+    try {
+      await runTransaction(db, async (tx) => {
+        const g = (await tx.get(gRef)).data();
+        const a = availability(g);
+        if (a.state === "closed") { const e = new Error("closed"); e.code = "closed"; throw e; }
+        if (a.state === "full")   { const e = new Error("full");   e.code = "full";   throw e; }
+        tx.set(rRef, regDoc);
+        tx.update(gRef, { count: g.count + 1, lastReg: regId });
+      });
+    } catch (e) {
+      if (e && (e.code === "full" || e.code === "closed")) throw e;
+      if (e && (e.code === "unavailable" || e.code === "deadline-exceeded")) { const n = new Error("network"); n.code = "network"; throw n; }
+      if (e && e.code === "permission-denied") {
+        // Rules rejected the write. Either the seats just ran out, or this email is already registered.
+        const g = (await getDoc(gRef)).data();
+        const a = availability(g);
+        if (a.state === "full" || a.state === "closed") { const n = new Error(a.state); n.code = a.state; throw n; }
+        const n = new Error("dup"); n.code = "duplicate-or-denied"; throw n;
+      }
+      throw e;
+    }
+  },
+};
+
+function clearErrors() { document.querySelectorAll(".err").forEach((el) => (el.textContent = "")); $("formerror").classList.add("hidden"); }
+function banner(msg) { $("formerror").textContent = msg; $("formerror").classList.remove("hidden"); $("formerror").scrollIntoView({ block: "center" }); }
+
+$("regform").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  clearErrors();
+  const form = { name: $("name").value, email: $("email").value, phone: $("phone").value, org: $("org").value, consent: $("consent").checked };
+  const v = validateForm(form);
+  if (!v.ok) { for (const [k, m] of Object.entries(v.errors)) $("err-" + k).textContent = m; const first = Object.keys(v.errors)[0]; $(first).focus(); return; }
+  $("submit").disabled = true; $("submit").textContent = "Reserving...";
+  try {
+    const r = await tryRegister(adapter, { code, form, rand: cryptoRand, serverTime: serverTimestamp() });
+    if (r.ok) {
+      $("donewho").textContent = r.name;
+      $("doneemail").textContent = r.email;
+      $("donetext").textContent = EMAIL_ENABLED
+        ? "A confirmation email is on its way. If it does not arrive within a few minutes, check spam."
+        : "";
+      $("donenote").textContent = EMAIL_ENABLED
+        ? "Keep this reference. Show it, or the email you registered with, at the door."
+        : "Keep this reference. Show it, or the email you registered with, at the door. No confirmation email is sent, so save or print this page now.";
+      $("doneref").textContent = r.ref;
+      $("donegroup").textContent = $("groupname").textContent;
+      show("done"); window.scrollTo(0, 0);
+    } else if (r.reason === "full" || r.reason === "closed") {
+      $("unavailable-title").textContent = r.reason === "full" ? "All seats for your group were just taken" : "Registration is closed for your group";
+      $("unavailable-text").textContent = "Your details were not saved. Contact the AHK Ghana team who invited you.";
+      show("unavailable");
+    } else if (r.reason === "duplicate-or-denied") {
+      banner("This email address may already be registered for Educata 2026. Each person can register once. If you did not register before, contact the AHK Ghana team.");
+    } else if (r.reason === "network") {
+      banner("Connection problem. Your seat was not reserved. Check your internet and press the button again.");
+    } else if (r.reason === "bad-code") {
+      show("badcode");
+    }
+  } catch (e) {
+    banner("Something went wrong and your seat was not reserved. Please try again in a moment.");
+  } finally {
+    $("submit").disabled = false; $("submit").textContent = "Reserve my seat";
+  }
+});
+
+$("print").addEventListener("click", () => window.print());
+boot();
+</script>
+</body>
+</html>
