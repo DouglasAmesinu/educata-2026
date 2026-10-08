@@ -19,4 +19,4 @@ export const EMAIL_ENABLED = false;
 
 // The public address guests will see in invite links, for example "https://educata.yourdomain.com/".
 // Leave "" until your custom domain works; then links use whatever address the admin page was opened from.
-export const PUBLIC_BASE_URL = "";
+export const PUBLIC_BASE_URL = "https://educata.gabsconnect.com/";
