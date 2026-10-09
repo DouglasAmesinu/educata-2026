@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Educata 2026 scanner</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root{--ink:#1B1535;--paper:#EEEBF5;--muted:#5B5675;--line:#cfc9e0;--ok:#1F7A4D;--bad:#B3261E;--gold:#F2B33D}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--ink);color:#fff;font:18px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:grid;place-items:center;padding:20px}
+  main{width:100%;max-width:440px;text-align:center}
+  h1{font-size:22px;margin:0 0 18px;color:var(--gold)}
+  .box{background:#fff;color:var(--ink);border-radius:18px;padding:22px;text-align:left}
+  .big{font-size:30px;font-weight:800;line-height:1.1;margin:0 0 6px}
+  .ref{font:800 28px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;margin:10px 0}
+  .ok{color:var(--ok)} .bad{color:var(--bad)} .muted{color:var(--muted);font-size:16px}
+  input,button{font:inherit;width:100%;padding:13px;border-radius:11px;border:2px solid var(--line);margin:6px 0}
+  button{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;cursor:pointer}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <h1>Educata 2026 scanner</h1>
+  <div class="box" id="login">
+    <p style="margin-top:0"><b>Staff sign-in</b> (once per phone)</p>
+    <input type="email" id="em" placeholder="Staff email" autocomplete="username">
+    <input type="password" id="pw" placeholder="Password" autocomplete="current-password">
+    <button id="signin">Sign in</button>
+    <p class="bad" id="loginerr"></p>
+  </div>
+  <div class="box hidden" id="status" aria-live="polite">
+    <p class="big" id="msg"></p>
+    <div class="ref" id="ref"></div>
+    <p class="muted" id="sub"></p>
+  </div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { parseRef } from "./core.js";
+import { FIREBASE_CONFIG } from "./config.js";
+
+const $ = (id) => document.getElementById(id);
+const db = getFirestore(initializeApp(FIREBASE_CONFIG));
+const auth = getAuth();
+const ref = parseRef(location.search);
+
+function say(cls, msg, sub, showRef) {
+  $("status").classList.remove("hidden"); $("login").classList.add("hidden");
+  $("msg").className = "big " + cls; $("msg").textContent = msg;
+  $("ref").textContent = showRef ? ref : ""; $("sub").textContent = sub || "";
+}
+
+$("signin").onclick = async () => { try { $("loginerr").textContent = ""; await signInWithEmailAndPassword(auth, $("em").value.trim(), $("pw").value); } catch (e) { $("loginerr").textContent = "Sign in failed: " + (e.code || e.message); } };
+
+let sent = false;
+onAuthStateChanged(auth, async (user) => {
+  if (!ref) { say("bad", "Not a valid ticket QR code.", "Ask the guest for their reference or use the gate laptop.", false); return; }
+  if (!user) { $("login").classList.remove("hidden"); $("status").classList.add("hidden"); return; }
+  if (sent) return;
+  const ok = async (c) => { try { return (await getDoc(doc(db, c, user.uid))).exists(); } catch (e) { return false; } };
+  if (!(await ok("staff")) && !(await ok("admins"))) { $("login").classList.remove("hidden"); $("status").classList.add("hidden"); $("loginerr").textContent = "This account is not on the staff list."; return; }
+  sent = true;
+  say("", "Sending to the gate...", "", true);
+  const timer = setTimeout(() => say("bad", "No connection yet", "Not sent. Move to better signal. It will send when you are online. Do not rescan.", true), 8000);
+  try {
+    await addDoc(collection(db, "scans"), { ref, at: serverTimestamp(), by: user.email });
+    clearTimeout(timer);
+    say("ok", "Sent to the gate laptop", "Now point your camera at the next guest's QR code.", true);
+  } catch (e) { clearTimeout(timer); sent = false; say("bad", "Not sent", (e.code || e.message) + ". Tell the person at the laptop.", true); }
+});
+</script>
+</body>
+</html>

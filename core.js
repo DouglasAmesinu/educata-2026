@@ -142,8 +142,43 @@ export function toCSV(rows, columns) {
 
 // Builds the guest-facing invite link. base: PUBLIC_BASE_URL from config.js ("" means use the current page).
 // The link points at the site root, which GitHub Pages serves as index.html, so "index.html" is not shown.
-export function inviteLink(base, currentHref, code) {
+function siteRoot(base, currentHref) {
   const root = base && base.trim() ? base.trim() : new URL("./", currentHref).href;
-  const clean = root.replace(/[?#].*$/, "").replace(/index\.html$/, "").replace(/\/?$/, "/");
-  return clean + "?c=" + encodeURIComponent(code);
+  return root.replace(/[?#].*$/, "").replace(/index\.html$/, "").replace(/\/?$/, "/");
+}
+
+export function inviteLink(base, currentHref, code) {
+  return siteRoot(base, currentHref) + "?c=" + encodeURIComponent(code);
+}
+
+// Link inside the QR code. A phone camera opens scan.html, which relays the scan to the gate laptop (door.html). Contains only the reference, no personal data.
+export function scanUrl(base, currentHref, ref) {
+  return siteRoot(base, currentHref) + "scan.html?ref=" + encodeURIComponent(ref);
+}
+
+export const REF_RE = /^EDU26-[A-Z0-9]{6}$/;
+
+export function parseRef(search) {
+  const raw = new URLSearchParams(search).get("ref");
+  if (!raw) return null;
+  const r = raw.trim().toUpperCase();
+  return REF_RE.test(r) ? r : null;
+}
+
+// Door page manual box: accepts a reference or an email address.
+export function classifyLookup(input) {
+  const t = String(input ?? "").trim();
+  const asRef = t.toUpperCase();
+  if (REF_RE.test(asRef)) return { type: "ref", value: asRef };
+  const e = normalizeEmail(t);
+  if (EMAIL_RE.test(e)) return { type: "email", value: e };
+  return null;
+}
+
+// Door scan box: a USB scanner types whatever the QR holds (the door link), a person may type a reference or email.
+export function extractLookup(text) {
+  const t = String(text ?? "").trim();
+  const m = t.match(/EDU26-[A-Z0-9]{6}/i);
+  if (m) return { type: "ref", value: m[0].toUpperCase() };
+  return classifyLookup(t);
 }

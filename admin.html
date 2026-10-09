@@ -43,7 +43,7 @@
   </section>
 
   <section id="app" class="hidden">
-    <div class="bar"><span id="who"></span><button id="signout">Sign out</button><button id="reload">Refresh</button></div>
+    <div class="bar"><a href="door.html">Door check-in page</a><span id="who"></span><button id="signout">Sign out</button><button id="reload">Refresh</button></div>
 
     <div id="seedbox" class="msg hidden">
       No seat groups exist yet.
@@ -67,7 +67,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, getDocs, collection, writeBatch, runTransaction, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, getDocs, collection, writeBatch, runTransaction, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { GROUP_PLAN, makeCode, makeGroupId, cryptoRand, toCSV, inviteLink } from "./core.js";
 import { FIREBASE_CONFIG, PUBLIC_BASE_URL } from "./config.js";
 
@@ -157,7 +157,7 @@ function renderRegs() {
     const tr = el("tr");
     [r.ref, r.name, r.email, nameOf[r.gid] || r.gid, r.org || "", r.phone || ""].forEach((v) => tr.append(el("td", v)));
     const ci = el("td"); const cb = el("button", r.checkedIn ? "Checked in. Undo" : "Check in");
-    cb.onclick = async () => { await updateDoc(doc(db, "registrations", r.id), { checkedIn: !r.checkedIn }); r.checkedIn = !r.checkedIn; renderRegs(); }; // no full reload: a reload costs about 300 reads, and door check-in would burn the free daily quota
+    cb.onclick = async () => { await updateDoc(doc(db, "registrations", r.id), { checkedIn: !r.checkedIn, checkedInAt: r.checkedIn ? null : serverTimestamp() }); r.checkedIn = !r.checkedIn; renderRegs(); }; // no full reload: a reload costs about 300 reads, and door check-in would burn the free daily quota
     ci.append(cb); tr.append(ci);
     const del = el("td"); const db_ = el("button", "Remove", "danger");
     db_.onclick = async () => {

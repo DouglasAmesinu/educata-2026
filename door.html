@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Educata 2026 gate</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root{--ink:#1B1535;--paper:#EEEBF5;--muted:#5B5675;--line:#cfc9e0;--ok:#1F7A4D;--bad:#B3261E;--gold:#F2B33D}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:18px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{background:var(--ink);color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+  header b{font-size:22px} header label{font-size:15px}
+  .count{font-weight:800;font-size:22px;color:var(--gold)}
+  main{max-width:900px;margin:0 auto;padding:18px 16px 60px}
+  .hidden{display:none!important}
+  .wait{text-align:center;color:var(--muted);padding:40px 10px;border:3px dashed var(--line);border-radius:18px;font-size:22px}
+  .card{background:#fff;border:2px solid var(--ink);border-radius:16px;padding:22px;box-shadow:5px 5px 0 var(--ink);margin-top:16px}
+  .card.first .name{font-size:44px}
+  .card.small .name{font-size:24px}
+  .name{font-size:32px;line-height:1.1;font-weight:800;margin:0 0 4px;word-break:break-word}
+  .sub{color:var(--muted);margin:0 0 12px}
+  dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0 0 14px} dt{color:var(--muted)} dd{margin:0;font-weight:600;word-break:break-word}
+  .status{padding:14px;border-radius:12px;font-weight:800;font-size:22px;margin-bottom:14px}
+  .status.new{background:#fff8e1;color:#7a5b00;border:2px solid var(--gold)}
+  .status.dup{background:#fdecea;color:var(--bad);border:2px solid var(--bad)}
+  .status.done{background:#e8f6ee;color:var(--ok);border:2px solid var(--ok)}
+  .status.missing{background:#fdecea;color:var(--bad);border:2px solid var(--bad)}
+  button,input{font:inherit}
+  button{border:2px solid var(--ink);border-radius:12px;background:#fff;color:var(--ink);padding:12px 18px;cursor:pointer}
+  button.big{width:100%;padding:20px;font-weight:800;font-size:26px;background:var(--ok);color:#fff}
+  button.big:disabled{opacity:.6}
+  input[type=text],input[type=email],input[type=password]{width:100%;padding:12px;border:2px solid var(--line);border-radius:10px;margin:6px 0 10px}
+  input:focus,button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  .err{color:var(--bad);font-weight:700}
+  .panel{background:#fff;border:2px solid var(--line);border-radius:14px;padding:16px;margin-top:22px}
+  .matches button{display:block;width:100%;text-align:left;margin:6px 0}
+</style>
+</head>
+<body>
+<header>
+  <b>Educata 2026 gate</b>
+  <label><input type="checkbox" id="sound"> Sound on new scan</label>
+  <span class="count" id="count"></span>
+</header>
+<main>
+  <section id="login" class="card hidden">
+    <p style="margin-top:0"><b>Admin sign-in</b></p>
+    <input type="email" id="em" placeholder="Admin email" autocomplete="username">
+    <input type="password" id="pw" placeholder="Password" autocomplete="current-password">
+    <button id="signin">Sign in</button>
+    <p class="err" id="loginerr"></p>
+  </section>
+
+  <section id="live" class="hidden">
+    <div class="wait" id="wait">Waiting for scans. Guests show their QR code, staff scan it with a phone camera.</div>
+    <div id="cards"></div>
+
+    <div class="panel">
+      <p style="margin-top:0"><b>No QR code? Look up by reference or email</b></p>
+      <input type="text" id="q" placeholder="EDU26-XXXXXX or guest@email.com" autocapitalize="off" autocomplete="off">
+      <button id="go">Find</button>
+      <p class="err" id="lookuperr"></p>
+    </div>
+    <div class="panel">
+      <p style="margin-top:0"><b>Search by name</b></p>
+      <button id="loadall">Load guest list for name search</button>
+      <p class="sub" id="loadnote">Loads every registration once (a few hundred reads). Needed only for guests without a QR code.</p>
+      <input type="text" id="nameq" placeholder="Type part of a name, organisation or email" class="hidden" autocomplete="off">
+      <div class="matches" id="matches"></div>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, getDocs, collection, query, where, orderBy, limit, onSnapshot, runTransaction, serverTimestamp, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { parseRef, classifyLookup } from "./core.js";
+import { FIREBASE_CONFIG } from "./config.js";
+
+const $ = (id) => document.getElementById(id);
+const db = getFirestore(initializeApp(FIREBASE_CONFIG));
+const auth = getAuth();
+let me = null, primed = false, all = null, started = false;
+let entries = []; // newest first: { ref, id, reg, state, gname }
+const gcache = {};
+const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
+const fmt = (ts) => { const d = ts && ts.toDate ? ts.toDate() : ts instanceof Date ? ts : null; return d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "earlier"; };
+
+$("signin").onclick = async () => { try { $("loginerr").textContent = ""; await signInWithEmailAndPassword(auth, $("em").value.trim(), $("pw").value); } catch (e) { $("loginerr").textContent = "Sign in failed: " + (e.code || e.message); } };
+
+onAuthStateChanged(auth, async (user) => {
+  me = user;
+  if (!user) { $("login").classList.remove("hidden"); $("live").classList.add("hidden"); return; }
+  const a = await getDoc(doc(db, "admins", user.uid)).catch(() => null);
+  if (!a || !a.exists()) { $("login").classList.remove("hidden"); $("loginerr").textContent = "This account is not on the admin list."; return; }
+  $("login").classList.add("hidden"); $("live").classList.remove("hidden");
+  if (started) return; started = true;
+  refreshCount();
+  const direct = parseRef(location.search);
+  if (direct) lookup("ref", direct, false);
+  // Live relay. The first snapshot is the backlog (old scans), ignored so a restart does not replay them.
+  onSnapshot(query(collection(db, "scans"), orderBy("at", "desc"), limit(20)), (snap) => {
+    if (!primed) { primed = true; return; }
+    snap.docChanges().forEach((ch) => { if (ch.type === "added") { const d = ch.doc.data(); if (d && d.ref) lookup("ref", d.ref, true); } });
+  }, (e) => { $("wait").textContent = "Scan relay error: " + (e.code || e.message); });
+});
+
+function beep() {
+  if (!$("sound").checked) return;
+  try { const c = new (window.AudioContext || window.webkitAudioContext)(); const o = c.createOscillator(); o.frequency.value = 880; o.connect(c.destination); o.start(); setTimeout(() => { o.stop(); c.close(); }, 180); } catch (e) {}
+}
+
+async function refreshCount() {
+  try {
+    const [done, total] = await Promise.all([getCountFromServer(query(collection(db, "registrations"), where("checkedIn", "==", true))), getCountFromServer(collection(db, "registrations"))]);
+    $("count").textContent = `In: ${done.data().count} / ${total.data().count}`;
+  } catch (e) { $("count").textContent = ""; }
+}
+
+async function groupName(gid) { if (gcache[gid]) return gcache[gid]; try { const g = await getDoc(doc(db, "groups", gid)); gcache[gid] = g.exists() ? g.data().name : gid; } catch (e) { gcache[gid] = gid; } return gcache[gid]; }
+
+async function lookup(kind, value, fromScan) {
+  $("lookuperr").textContent = "";
+  let snap = null;
+  try {
+    if (kind === "ref") { const qs = await getDocs(query(collection(db, "registrations"), where("ref", "==", value), limit(1))); snap = qs.docs[0] || null; }
+    else { const d = await getDoc(doc(db, "registrations", value)); snap = d.exists() ? d : null; }
+  } catch (e) { return addEntry({ ref: value, state: "missing", note: "Lookup failed: " + (e.code || e.message) }, fromScan); }
+  if (!snap) return addEntry({ ref: value, state: "missing", note: "No registration found. Do not admit without checking with the organiser." }, fromScan);
+  const reg = snap.data();
+  addEntry({ ref: reg.ref, id: snap.id, reg, state: reg.checkedIn ? "dup" : "new", gname: await groupName(reg.gid) }, fromScan);
+}
+
+function addEntry(e, fromScan) {
+  entries = [e, ...entries.filter((x) => !(x.ref === e.ref))].slice(0, 8);
+  if (fromScan) beep();
+  render();
+}
+
+function render() {
+  const box = $("cards"); box.replaceChildren();
+  $("wait").classList.toggle("hidden", entries.length > 0);
+  entries.forEach((e, i) => {
+    const card = el("div", null, "card " + (i === 0 ? "first" : "small"));
+    if (e.state === "missing") {
+      card.append(el("p", e.ref, "name"), el("div", e.note, "status missing"));
+    } else {
+      card.append(el("p", e.reg.name, "name"), el("p", e.reg.org || "", "sub"));
+      const st = el("div", null, "status " + e.state);
+      st.textContent = e.state === "done" ? "Checked in. Welcome." : e.state === "dup" ? "ALREADY CHECKED IN at " + fmt(e.reg.checkedInAt) + ". Check ID before admitting again." : "Not checked in yet. Compare the name with the guest.";
+      card.append(st);
+      const dl = el("dl");
+      [["Group", e.gname], ["Email", e.reg.email], ["Phone", e.reg.phone || "none"], ["Reference", e.reg.ref]].forEach(([k, v]) => dl.append(el("dt", k), el("dd", v)));
+      card.append(dl);
+      if (e.state === "new") {
+        const b = el("button", "Check in", "big");
+        b.onclick = () => checkIn(e, b);
+        card.append(b);
+      }
+    }
+    box.append(card);
+  });
+}
+
+async function checkIn(e, b) {
+  b.disabled = true;
+  try {
+    const out = await runTransaction(db, async (tx) => {
+      const r = doc(db, "registrations", e.id); const cur = (await tx.get(r)).data();
+      if (cur.checkedIn) return { already: true, data: cur };
+      tx.update(r, { checkedIn: true, checkedInAt: serverTimestamp(), checkedInBy: me.email });
+      return { already: false, data: { ...cur, checkedIn: true } };
+    });
+    e.reg = out.data; e.state = out.already ? "dup" : "done"; render(); refreshCount();
+  } catch (err) { b.disabled = false; $("lookuperr").textContent = "Check-in failed: " + (err.code || err.message); }
+}
+
+$("go").onclick = () => { const c = classifyLookup($("q").value); if (!c) { $("lookuperr").textContent = "Enter a reference like EDU26-K7M2QX or a full email address."; return; } lookup(c.type, c.value, false); };
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter") $("go").click(); });
+
+$("loadall").onclick = async () => {
+  $("loadall").disabled = true;
+  try {
+    all = (await getDocs(collection(db, "registrations"))).docs.map((d) => ({ id: d.id, ...d.data() }));
+    $("loadnote").textContent = `${all.length} guests loaded.`; $("nameq").classList.remove("hidden"); $("nameq").focus();
+  } catch (e) { $("loadnote").textContent = "Failed: " + (e.code || e.message); $("loadall").disabled = false; }
+};
+$("nameq").oninput = () => {
+  const t = $("nameq").value.trim().toLowerCase(); const m = $("matches"); m.replaceChildren();
+  if (t.length < 2 || !all) return;
+  all.filter((r) => [r.name, r.org, r.email].some((v) => (v || "").toLowerCase().includes(t))).slice(0, 8).forEach((r) => {
+    const b = el("button", `${r.name}, ${r.org || ""} (${r.email})${r.checkedIn ? "  [in]" : ""}`);
+    b.onclick = () => lookup("email", r.id, false);
+    m.append(b);
+  });
+};
+</script>
+</body>
+</html>

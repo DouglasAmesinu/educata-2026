@@ -84,6 +84,12 @@
   button.ghost{font:700 16px var(--body);padding:11px 18px;border:2px solid var(--ink);border-radius:11px;background:#fff;color:var(--ink);cursor:pointer}
   .banner{border-left:6px solid var(--bad);background:#fff4f3;padding:13px 15px;border-radius:8px;margin-bottom:6px}
 
+  /* QR on the confirmation ticket */
+  .qr{display:flex;gap:18px;align-items:center;margin:2px 0 18px}
+  .qr img{width:168px;height:168px;image-rendering:pixelated;border:2px solid var(--ink);border-radius:10px;padding:6px;background:#fff;flex:none}
+  .qr p{margin:0;font-weight:700}
+  .qr span{display:block;color:var(--muted);font-weight:400;font-size:15px;margin-top:4px}
+  @media (max-width:420px){.qr{flex-direction:column;align-items:flex-start}}
   /* confirmation */
   .ref{font:800 clamp(22px,7vw,40px)/1 var(--display);letter-spacing:.04em;color:var(--gold);margin:6px 0 0;white-space:nowrap}
   .who{font-weight:700;font-size:20px;margin:0}
@@ -203,6 +209,7 @@
       <div class="perf" aria-hidden="true"></div>
       <div class="body">
         <h2>Your seat is reserved</h2>
+        <div class="qr"><img id="doneqr" alt="Your check-in QR code" width="168" height="168"><p>Show this QR code at the door<span>Take a screenshot or print this page. Staff scan it to check you in.</span></p></div>
         <dl class="facts">
           <dt>Group</dt><dd id="donegroup"></dd>
           <dt>Email</dt><dd id="doneemail"></dd>
@@ -217,7 +224,7 @@
   <ol class="steps noprint" aria-label="How it works">
     <li><div><b>Register</b><span>Use the private link from your invitation. Seats are limited per group.</span></div></li>
     <li><div><b>Keep your reference</b><span>Save or print the confirmation. Your seat is tied to your email address.</span></div></li>
-    <li><div><b>Show it at the door</b><span>Give your reference or email. Entry is strictly by invitation.</span></div></li>
+    <li><div><b>Show it at the door</b><span>Show your QR code, or your reference, at the door. Entry is strictly by invitation.</span></div></li>
   </ol>
 </main>
 
@@ -229,8 +236,9 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, onSnapshot, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { parseCode, availability, tryRegister, validateForm, cryptoRand } from "./core.js";
-import { FIREBASE_CONFIG, EVENT_LINE, EMAIL_ENABLED } from "./config.js";
+import { parseCode, availability, tryRegister, validateForm, cryptoRand, scanUrl } from "./core.js";
+import { qrDataUrl } from "./qr.js";
+import { FIREBASE_CONFIG, EVENT_LINE, EMAIL_ENABLED, PUBLIC_BASE_URL } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const show = (id) => { for (const s of ["loading","badcode","unavailable","formwrap","done"]) $(s).classList.toggle("hidden", s !== id); };
@@ -324,10 +332,11 @@ $("regform").addEventListener("submit", async (ev) => {
         ? "A confirmation email is on its way. If it does not arrive within a few minutes, check spam."
         : "";
       $("donenote").textContent = EMAIL_ENABLED
-        ? "Keep this reference. Show it, or the email you registered with, at the door."
-        : "Keep this reference. Show it, or the email you registered with, at the door. No confirmation email is sent, so save or print this page now.";
+        ? "Show the QR code, or this reference, at the door. Your confirmation email has the same QR code."
+        : "Show the QR code, or this reference, at the door. No confirmation email is sent, so take a screenshot or print this page now.";
       $("doneref").textContent = r.ref;
       $("donegroup").textContent = $("groupname").textContent;
+      try { $("doneqr").src = qrDataUrl(scanUrl(PUBLIC_BASE_URL, location.href, r.ref)); } catch (e) { document.querySelector(".qr").classList.add("hidden"); }
       show("done"); window.scrollTo(0, 0);
     } else if (r.reason === "full" || r.reason === "closed") {
       $("unavailable-title").textContent = r.reason === "full" ? "All seats for your group were just taken" : "Registration is closed for your group";
