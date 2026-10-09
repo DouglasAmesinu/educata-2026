@@ -11,7 +11,7 @@ export const FIREBASE_CONFIG = {
 
 // Optional line shown under the title, for example "Thursday 12 November, 6:30 PM, Venue name, Accra".
 // Leave as "" to hide it.
-export const EVENT_LINE = "Friday 09 November, 10:42 AM, Venue, Accra";
+export const EVENT_LINE = "";
 
 // Set to true ONLY after the confirmation email function is deployed and a test email has arrived
 // (see README, Part 5). While false, guests are told to save or print their reference.
