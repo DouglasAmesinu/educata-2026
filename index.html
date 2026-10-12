@@ -7,7 +7,12 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap"></noscript>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js">
+<link rel="modulepreload" href="./core.js">
+<link rel="modulepreload" href="./config.js">
 <style>
   :root{
     --ink:#1B1535; --ink2:#2B1D57; --paper:#EEEBF5; --muted:#5B5675; --line:#cfc9e0;
@@ -114,6 +119,8 @@
 
   footer{max-width:760px;margin:30px auto 0;padding:22px 20px 44px;border-top:2px solid var(--line);color:var(--muted);font-size:15px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   @media print{
+    @page{margin:12mm}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     body{background:#fff} .hero,.steps,footer,button,.noprint{display:none!important}
     main{margin:0;padding:0} .ticket{box-shadow:none} .stub{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   }
@@ -139,7 +146,7 @@
 </header>
 
 <main>
-  <section id="loading" aria-live="polite"><div class="skeleton">Checking your invitation...</div></section>
+  <section id="loading" class="hidden" aria-live="polite"><div class="skeleton">Checking your invitation...</div></section>
 
   <section id="badcode" class="hidden">
     <div class="ticket"><div class="body notice">
@@ -156,11 +163,11 @@
     </div></div>
   </section>
 
-  <section id="formwrap" class="hidden">
+  <section id="formwrap">
     <div class="ticket">
       <div class="stub">
         <small>Your invitation</small>
-        <p class="gname" id="groupname"></p>
+        <p class="gname" id="groupname">Checking your invitation...</p>
         <div class="meter" id="meter" role="img" aria-label=""></div>
         <p class="seats" id="seatsline"></p>
         <div class="legend" aria-hidden="true"><span class="t">Taken</span><span>Free</span></div>
@@ -193,7 +200,7 @@
           </label>
           <div class="err" id="err-consent"></div>
 
-          <button class="primary" id="submit" type="submit">Reserve my seat</button>
+          <button class="primary" id="submit" type="submit" disabled>Reserve my seat</button>
         </form>
       </div>
     </div>
@@ -209,14 +216,18 @@
       <div class="perf" aria-hidden="true"></div>
       <div class="body">
         <h2>Your seat is reserved</h2>
-        <div class="qr"><img id="doneqr" alt="Your check-in QR code" width="168" height="168"><p>Show this QR code at the door<span>Take a screenshot or print this page. Staff scan it to check you in.</span></p></div>
+        <div class="qr hidden"><img id="doneqr" alt="Your check-in QR code" width="168" height="168"><p>Show this QR code at the door<span>Take a screenshot or print this page. Staff scan it to check you in.</span></p></div>
         <dl class="facts">
           <dt>Group</dt><dd id="donegroup"></dd>
           <dt>Email</dt><dd id="doneemail"></dd>
         </dl>
         <p id="donetext" class="hint"></p>
         <p id="donenote"></p>
-        <button class="ghost noprint" id="print" type="button">Print or save as PDF</button>
+        <div class="noprint" style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="ghost" id="save" type="button">Save ticket image</button>
+          <button class="ghost" id="print" type="button">Print</button>
+        </div>
+        <p class="hint noprint" id="savehint" style="margin-top:10px">Tip: you can also press and hold the QR code to save it. If Print does nothing, you are probably in an app's built-in browser. Open this page in Chrome or Safari, or use Save ticket image.</p>
       </div>
     </div>
   </section>
@@ -237,7 +248,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, onSnapshot, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { parseCode, availability, tryRegister, validateForm, cryptoRand, scanUrl } from "./core.js";
-import { qrDataUrl } from "./qr.js";
 import { FIREBASE_CONFIG, EVENT_LINE, EMAIL_ENABLED, PUBLIC_BASE_URL } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
@@ -260,11 +270,13 @@ function renderGroup(g) {
   if (a.state === "full") { $("unavailable-title").textContent = "All seats for your group are taken"; $("unavailable-text").textContent = "Registration for this group is closed because every seat has been claimed. If you think this is a mistake, contact the AHK Ghana team who invited you."; show("unavailable"); }
   else if (a.state === "closed") { $("unavailable-title").textContent = "Registration is closed for your group"; $("unavailable-text").textContent = "Contact the AHK Ghana team who invited you if you need a seat."; show("unavailable"); }
   else if (!$("done").classList.contains("hidden")) { /* stay on confirmation */ }
-  else show("formwrap");
+  else { show("formwrap"); $("submit").disabled = false; }
 }
 
 async function boot() {
   if (!code) return show("badcode");
+  // If nothing has loaded after 12 seconds, say so instead of leaving a dead form.
+  setTimeout(() => { if ($("submit").disabled && !$("formwrap").classList.contains("hidden") && $("groupname").textContent.startsWith("Checking")) { $("unavailable-title").textContent = "Slow connection"; $("unavailable-text").textContent = "We could not load your invitation yet. Check your internet connection and reload this page."; show("unavailable"); } }, 12000);
   try {
     const inv = await getDoc(doc(db, "invites", code));
     if (!inv.exists()) return show("badcode");
@@ -336,7 +348,7 @@ $("regform").addEventListener("submit", async (ev) => {
         : "Show the QR code, or this reference, at the door. No confirmation email is sent, so take a screenshot or print this page now.";
       $("doneref").textContent = r.ref;
       $("donegroup").textContent = $("groupname").textContent;
-      try { $("doneqr").src = qrDataUrl(scanUrl(PUBLIC_BASE_URL, location.href, r.ref)); } catch (e) { document.querySelector(".qr").classList.add("hidden"); }
+      import("./qr.js").then((m) => { $("doneqr").src = m.qrDataUrl(scanUrl(PUBLIC_BASE_URL, location.href, r.ref)); document.querySelector(".qr").classList.remove("hidden"); }).catch(() => document.querySelector(".qr").classList.add("hidden"));
       show("done"); window.scrollTo(0, 0);
     } else if (r.reason === "full" || r.reason === "closed") {
       $("unavailable-title").textContent = r.reason === "full" ? "All seats for your group were just taken" : "Registration is closed for your group";
@@ -356,7 +368,19 @@ $("regform").addEventListener("submit", async (ev) => {
   }
 });
 
-$("print").addEventListener("click", () => window.print());
+$("print").addEventListener("click", () => { try { window.print(); } catch (e) { $("savehint").textContent = "Printing is not available here. Use Save ticket image instead."; } });
+$("save").addEventListener("click", async () => {
+  const b = $("save"); b.disabled = true;
+  try {
+    const { drawTicket } = await import("./ticket.js");
+    const ref = $("doneref").textContent;
+    const blob = await drawTicket({ name: $("donewho").textContent, ref, group: $("donegroup").textContent, qr: $("doneqr").src, eventLine: EVENT_LINE });
+    const file = new File([blob], `educata-2026-ticket-${ref}.png`, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: "Educata 2026 ticket" }); return; } catch (e) { if (e.name === "AbortError") return; } }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 15000);
+  } catch (e) { $("savehint").textContent = "Could not create the image. Take a screenshot of this page instead."; }
+  finally { b.disabled = false; }
+});
 boot();
 </script>
 </body>

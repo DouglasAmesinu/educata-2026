@@ -5,8 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Educata 2026 scanner</title>
 <meta name="robots" content="noindex, nofollow">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-lite.js">
+<link rel="modulepreload" href="./core.js">
+<link rel="modulepreload" href="./config.js">
 <style>
-  :root{--ink:#1B1535;--paper:#EEEBF5;--muted:#5B5675;--line:#cfc9e0;--ok:#1F7A4D;--bad:#B3261E;--gold:#F2B33D}
+  :root{--ink:#1B1535;--muted:#5B5675;--line:#cfc9e0;--ok:#1F7A4D;--bad:#B3261E;--gold:#F2B33D}
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;background:var(--ink);color:#fff;font:18px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:grid;place-items:center;padding:20px}
   main{width:100%;max-width:440px;text-align:center}
@@ -23,15 +28,16 @@
 <body>
 <main>
   <h1>Educata 2026 scanner</h1>
-  <div class="box" id="login">
+  <!-- The login box stays hidden until we KNOW there is no saved session, so a signed-in phone never sees it. -->
+  <div class="box hidden" id="login">
     <p style="margin-top:0"><b>Staff sign-in</b> (once per phone)</p>
     <input type="email" id="em" placeholder="Staff email" autocomplete="username">
     <input type="password" id="pw" placeholder="Password" autocomplete="current-password">
     <button id="signin">Sign in</button>
     <p class="bad" id="loginerr"></p>
   </div>
-  <div class="box hidden" id="status" aria-live="polite">
-    <p class="big" id="msg"></p>
+  <div class="box" id="status" aria-live="polite">
+    <p class="big" id="msg">Opening scanner...</p>
     <div class="ref" id="ref"></div>
     <p class="muted" id="sub"></p>
   </div>
@@ -39,39 +45,47 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { parseRef } from "./core.js";
 import { FIREBASE_CONFIG } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
-const db = getFirestore(initializeApp(FIREBASE_CONFIG));
-const auth = getAuth();
 const ref = parseRef(location.search);
+const app = initializeApp(FIREBASE_CONFIG);
+const auth = getAuth(app);
+
+// Firestore Lite: a plain one-shot HTTPS write, no streaming connection to set up. Falls back to the full SDK if it cannot load.
+const fsPromise = import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-lite.js")
+  .catch(() => import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"));
 
 function say(cls, msg, sub, showRef) {
   $("status").classList.remove("hidden"); $("login").classList.add("hidden");
   $("msg").className = "big " + cls; $("msg").textContent = msg;
   $("ref").textContent = showRef ? ref : ""; $("sub").textContent = sub || "";
 }
+function askLogin(err) { $("status").classList.add("hidden"); $("login").classList.remove("hidden"); $("loginerr").textContent = err || ""; }
 
 $("signin").onclick = async () => { try { $("loginerr").textContent = ""; await signInWithEmailAndPassword(auth, $("em").value.trim(), $("pw").value); } catch (e) { $("loginerr").textContent = "Sign in failed: " + (e.code || e.message); } };
 
 let sent = false;
 onAuthStateChanged(auth, async (user) => {
   if (!ref) { say("bad", "Not a valid ticket QR code.", "Ask the guest for their reference or use the gate laptop.", false); return; }
-  if (!user) { $("login").classList.remove("hidden"); $("status").classList.add("hidden"); return; }
+  if (!user) { askLogin(""); return; }
   if (sent) return;
-  const ok = async (c) => { try { return (await getDoc(doc(db, c, user.uid))).exists(); } catch (e) { return false; } };
-  if (!(await ok("staff")) && !(await ok("admins"))) { $("login").classList.remove("hidden"); $("status").classList.add("hidden"); $("loginerr").textContent = "This account is not on the staff list."; return; }
   sent = true;
   say("", "Sending to the gate...", "", true);
-  const timer = setTimeout(() => say("bad", "No connection yet", "Not sent. Move to better signal. It will send when you are online. Do not rescan.", true), 8000);
+  const timer = setTimeout(() => say("bad", "Still trying...", "Weak connection. Stay on this page; do not rescan.", true), 6000);
   try {
-    await addDoc(collection(db, "scans"), { ref, at: serverTimestamp(), by: user.email });
+    const { getFirestore, addDoc, collection, serverTimestamp } = await fsPromise;
+    // One write. The security rules decide whether this account may scan, so no extra role lookups are needed.
+    await addDoc(collection(getFirestore(app), "scans"), { ref, at: serverTimestamp(), by: user.email });
     clearTimeout(timer);
     say("ok", "Sent to the gate laptop", "Now point your camera at the next guest's QR code.", true);
-  } catch (e) { clearTimeout(timer); sent = false; say("bad", "Not sent", (e.code || e.message) + ". Tell the person at the laptop.", true); }
+  } catch (e) {
+    clearTimeout(timer); sent = false;
+    if (e.code === "permission-denied") { await signOut(auth).catch(() => {}); askLogin("This account is not allowed to scan. Sign in with a staff account."); }
+    else say("bad", "Not sent", (e.code || e.message) + ". Check your connection and scan again.", true);
+  }
 });
 </script>
 </body>
