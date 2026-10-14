@@ -3,31 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Educata 2026 scanner</title>
+<title>Content Creator Contest scanner</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-lite.js">
 <link rel="modulepreload" href="./core.js">
 <link rel="modulepreload" href="./config.js">
+<link rel="preload" href="assets/fonts/montserrat-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/brand.css">
 <style>
-  :root{--ink:#1B1535;--muted:#5B5675;--line:#cfc9e0;--ok:#1F7A4D;--bad:#B3261E;--gold:#F2B33D}
+  /* Colours and fonts come from assets/brand.css. */
   *{box-sizing:border-box}
-  body{margin:0;min-height:100vh;background:var(--ink);color:#fff;font:18px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:grid;place-items:center;padding:20px}
+  body{margin:0;min-height:100vh;background:var(--black);color:var(--white);font:500 18px/1.45 var(--font-body);display:grid;place-items:center;padding:20px}
   main{width:100%;max-width:440px;text-align:center}
-  h1{font-size:22px;margin:0 0 18px;color:var(--gold)}
-  .box{background:#fff;color:var(--ink);border-radius:18px;padding:22px;text-align:left}
-  .big{font-size:30px;font-weight:800;line-height:1.1;margin:0 0 6px}
-  .ref{font:800 28px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;margin:10px 0}
+  .logo{display:block;width:110px;height:auto;margin:0 auto 10px}
+  h1{font:800 20px/1.2 var(--font-head);margin:0 0 18px;color:var(--orange)}
+  .box{background:var(--white);color:var(--text);border-radius:18px;border-top:4px solid var(--orange);padding:22px;text-align:left}
+  .big{font:800 28px/1.15 var(--font-head);margin:0 0 6px;color:var(--black)}
+  .ref{font:700 26px/1.1 var(--font-mono);letter-spacing:var(--ref-spacing);margin:10px 0;color:var(--black);overflow-wrap:anywhere}
   .ok{color:var(--ok)} .bad{color:var(--bad)} .muted{color:var(--muted);font-size:16px}
-  input,button{font:inherit;width:100%;padding:13px;border-radius:11px;border:2px solid var(--line);margin:6px 0}
-  button{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;cursor:pointer}
+  input,button{font:inherit;width:100%;min-height:52px;padding:13px;border-radius:11px;border:2px solid var(--grey-300);margin:6px 0}
+  input{background:var(--white);color:var(--text)}
+  input:focus-visible,button:focus-visible{outline:3px solid var(--black);outline-offset:2px;border-color:var(--orange)}
+  button{background:var(--orange);color:var(--black);border-color:var(--black);font-weight:700;cursor:pointer}
   .hidden{display:none!important}
 </style>
 </head>
 <body>
 <main>
-  <h1>Educata 2026 scanner</h1>
+  <img class="logo" src="assets/educata-logo-light.png" alt="educataGhana" width="110" height="37">
+  <h1>Content Creator Contest scanner</h1>
   <!-- The login box stays hidden until we KNOW there is no saved session, so a signed-in phone never sees it. -->
   <div class="box hidden" id="login">
     <p style="margin-top:0"><b>Staff sign-in</b> (once per phone)</p>
@@ -80,7 +86,7 @@ onAuthStateChanged(auth, async (user) => {
     // One write. The security rules decide whether this account may scan, so no extra role lookups are needed.
     await addDoc(collection(getFirestore(app), "scans"), { ref, at: serverTimestamp(), by: user.email });
     clearTimeout(timer);
-    say("ok", "Sent to the gate laptop", "Now point your camera at the next guest's QR code.", true);
+    say("ok", "Sent to the gate laptop", "Now point your camera at the next participant's QR code.", true);
   } catch (e) {
     clearTimeout(timer); sent = false;
     if (e.code === "permission-denied") { await signOut(auth).catch(() => {}); askLogin("This account is not allowed to scan. Sign in with a staff account."); }

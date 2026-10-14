@@ -5,119 +5,144 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Educata 2026 | Evening Event Registration</title>
 <meta name="robots" content="noindex, nofollow">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap"></noscript>
+<link rel="preload" href="assets/fonts/montserrat-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/brand.css">
+<link rel="preload" href="assets/hero-bg.svg" as="image" type="image/svg+xml">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js">
 <link rel="modulepreload" href="./core.js">
 <link rel="modulepreload" href="./config.js">
 <style>
-  :root{
-    --ink:#1B1535; --ink2:#2B1D57; --paper:#EEEBF5; --muted:#5B5675; --line:#cfc9e0;
-    --accent:#D6336C; --gold:#F2B33D; --bad:#B3261E; --card:#fff;
-    --display:Syne,"DM Sans",system-ui,sans-serif; --body:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  }
+  /* Colours and fonts come from assets/brand.css. */
+  :root{--line:var(--grey-300);--card:var(--white);--display:var(--font-head);--body:var(--font-body)}
   *{box-sizing:border-box}
   html{-webkit-text-size-adjust:100%}
-  body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.5 var(--body)}
+  body{margin:0;background:var(--page);color:var(--text);font:500 17px/1.5 var(--body)}
   a{color:inherit}
   .hidden{display:none!important}
 
-  /* ---------- Hero: stage lights + camera viewfinder ---------- */
-  .hero{position:relative;overflow:hidden;background:radial-gradient(120% 90% at 50% 0%,var(--ink2) 0%,var(--ink) 62%);color:#fff;padding:44px 20px 112px}
-  .beams{position:absolute;inset:0;pointer-events:none}
-  .beam{position:absolute;top:-2%;height:112%;width:46%;transform-origin:50% 0;filter:blur(5px);
-    clip-path:polygon(47% 0,53% 0,100% 100%,0 100%)}
-  .beam.a{left:-6%;background:linear-gradient(to bottom,rgba(214,51,108,.7),rgba(214,51,108,0) 82%);transform:rotate(-17deg)}
-  .beam.b{left:27%;background:linear-gradient(to bottom,rgba(242,179,61,.55),rgba(242,179,61,0) 78%);transform:rotate(4deg)}
-  .beam.c{right:-8%;background:linear-gradient(to bottom,rgba(170,120,255,.55),rgba(170,120,255,0) 80%);transform:rotate(20deg)}
-  .hero::after{content:"";position:absolute;inset:0;background:radial-gradient(70% 45% at 50% 0%,rgba(255,255,255,.2),transparent 72%);pointer-events:none}
-  .hero-inner{position:relative;max-width:728px;margin:0 auto;text-align:left}
-  .presenter{margin:0 0 22px;font-weight:500;color:#d9d3ef;letter-spacing:.01em}
-  .frame{position:relative;padding:26px 24px 22px}
-  .frame i{position:absolute;width:26px;height:26px;border:3px solid var(--gold)}
+  /* ---------- Hero: black, camera viewfinder with orange corners ---------- */
+  /* A dark gradient paints at once; the artwork (or a photo) is layered on top without moving anything.
+     To use a photo instead: put assets/hero.jpg (max 120 KB, max 1600 px wide) in assets, then in this file change
+     hero-bg.svg to hero.jpg in the preload link and in the hero img, and add class "photo" to that img (turns on the dark overlay). */
+  .hero{position:relative;overflow:hidden;background:radial-gradient(90% 70% at 90% 100%,rgba(236,130,35,.22),rgba(236,130,35,0) 60%),var(--black);color:var(--white);padding:28px 20px 112px}
+  .hero-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+  .hero-shade{display:none;position:absolute;inset:0;background:rgba(0,0,0,.65)}
+  .hero-art.photo + .hero-shade{display:block}
+  .hero-inner{position:relative;max-width:728px;margin:0 auto;text-align:center}
+  .logo{display:block;width:132px;height:auto;margin:0 auto 18px}
+  .presenter{margin:0 auto 18px;max-width:34ch;font-weight:500;font-size:15.5px;color:var(--on-dark)}
+  .frame{position:relative;padding:30px 22px 26px;margin:0 auto;max-width:640px}
+  .frame i{position:absolute;width:28px;height:28px;border:4px solid var(--orange)}
   .frame .tl{left:0;top:0;border-right:0;border-bottom:0}
   .frame .tr{right:0;top:0;border-left:0;border-bottom:0}
   .frame .bl{left:0;bottom:0;border-right:0;border-top:0}
   .frame .br{right:0;bottom:0;border-left:0;border-top:0}
-  .rec{display:inline-flex;align-items:center;gap:9px;font-weight:700;font-size:15px;color:#fff;margin-bottom:6px}
-  .rec b{width:11px;height:11px;border-radius:50%;background:#ff3b5c;box-shadow:0 0 0 4px rgba(255,59,92,.25)}
-  h1{font:800 clamp(56px,16vw,104px)/.9 var(--display);letter-spacing:-.025em;margin:6px 0 0}
-  .lede{font-size:20px;margin:22px 0 18px;max-width:30ch;color:#f3effc}
-  .chips{display:flex;flex-wrap:wrap;gap:8px;list-style:none;margin:0;padding:0}
-  .chips li{border:1.5px solid rgba(255,255,255,.45);border-radius:999px;padding:5px 13px;font-size:14.5px;font-weight:500;background:rgba(255,255,255,.07)}
-  .chips li.hl{border-color:var(--gold);color:var(--gold)}
+  h1{font:800 clamp(40px,11.5vw,78px)/1.02 var(--display);letter-spacing:-.01em;margin:0;color:var(--white);overflow-wrap:break-word}
+  .sub{margin:14px 0 0;font-weight:600;font-size:15px;letter-spacing:.06em;color:var(--orange)}
+  .lede{font-size:17px;margin:14px auto 18px;max-width:34ch;color:var(--white)}
+  .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;list-style:none;margin:0;padding:0}
+  .chips li{border:1.5px solid var(--muted);border-radius:999px;padding:5px 13px;font-size:14.5px;font-weight:500;color:var(--white)}
+  .chips li.hl{border-color:var(--orange);color:var(--orange)}
 
-  @media (prefers-reduced-motion:no-preference){
-    .beam{animation:fadein 1.8s ease-out 1 both}
-    @keyframes fadein{from{opacity:0}to{opacity:1}}
-    .rec b{animation:blink 1.6s steps(2,jump-none) infinite}
-    @keyframes blink{50%{opacity:.25}}
-    .dot{transition:background .25s,border-color .25s}
-  }
+  @media (prefers-reduced-motion:no-preference){ .dot{transition:background .25s,border-color .25s} }
 
   /* ---------- Page body ---------- */
   main{position:relative;max-width:640px;margin:-72px auto 0;padding:0 16px 24px}
-  .ticket{position:relative;background:var(--card);border:2px solid var(--ink);border-radius:18px;box-shadow:7px 7px 0 var(--ink)}
-  .stub{background:var(--ink);color:#fff;border-radius:15px 15px 0 0;padding:22px 24px 26px}
-  .stub small{display:block;color:#cfc8e8;font-size:14.5px;margin-bottom:2px}
+  .ticket{position:relative;background:var(--card);border:2px solid var(--black);border-top:3px solid var(--orange);border-radius:18px;box-shadow:7px 7px 0 var(--black)}
+  .stub{background:var(--black);color:var(--white);border-radius:15px 15px 0 0;padding:22px 24px 26px}
+  .stub small{display:block;color:var(--on-dark);font-size:14.5px;margin-bottom:2px}
   .gname{font:800 clamp(24px,6.5vw,32px)/1.1 var(--display);margin:0}
   .meter{display:flex;flex-wrap:wrap;gap:7px;margin:16px 0 10px}
-  .dot{width:15px;height:15px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:transparent}
-  .dot.taken{background:var(--gold);border-color:var(--gold)}
-  .seats{margin:0;font-weight:500;color:#fff;min-height:1.4em}
-  .legend{display:flex;gap:16px;font-size:13.5px;color:#cfc8e8;margin-top:6px}
-  .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;border:2px solid rgba(255,255,255,.7);vertical-align:-1px}
-  .legend .t::before{background:var(--gold);border-color:var(--gold)}
-  .perf{height:0;border-top:2px dashed var(--ink);opacity:.35;margin:0}
+  .dot{width:15px;height:15px;border-radius:50%;border:2px solid var(--on-dark);background:transparent}
+  .dot.taken{background:var(--orange);border-color:var(--orange)}
+  .seats{margin:0;font-weight:500;color:var(--white);min-height:1.4em}
+  .legend{display:flex;gap:16px;font-size:13.5px;color:var(--on-dark);margin-top:6px}
+  .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;border:2px solid var(--on-dark);vertical-align:-1px}
+  .legend .t::before{background:var(--orange);border-color:var(--orange)}
+  .perf{height:0;border-top:2px dashed var(--black);opacity:.35;margin:0}
   .body{padding:22px 24px 26px}
-  .body h2{font:700 22px/1.2 var(--display);margin:0 0 4px}
+  .body h2{font:800 22px/1.2 var(--display);margin:0 0 4px}
   .hint{color:var(--muted);margin:0 0 6px;font-size:15.5px}
 
   label{display:block;font-weight:700;margin:18px 0 6px}
-  label small{font-weight:400;color:var(--muted)}
-  input[type=text],input[type=email],input[type=tel]{width:100%;font:inherit;padding:13px 14px;border:2px solid var(--line);border-radius:11px;background:#fbfaff;color:var(--ink)}
-  input:focus,button:focus-visible,a:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-color:var(--ink)}
+  label small{font-weight:500;color:var(--muted)}
+  input[type=text],input[type=email],input[type=tel]{width:100%;font:inherit;padding:13px 14px;border:2px solid var(--line);border-radius:11px;background:var(--white);color:var(--text)}
+  input:focus,button:focus-visible,a:focus-visible{outline:3px solid var(--black);outline-offset:2px;border-color:var(--orange)}
   .err{color:var(--bad);font-size:15px;margin:6px 0 0}
-  .check{display:flex;gap:11px;align-items:flex-start;font-weight:400;margin-top:22px;font-size:15.5px}
-  .check input{margin-top:4px;width:20px;height:20px;flex:none;accent-color:var(--accent)}
-  button.primary{margin-top:24px;width:100%;font:700 18px var(--body);padding:16px;border:2px solid var(--ink);border-radius:13px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 4px 0 var(--ink);transition:transform .08s,box-shadow .08s}
-  button.primary:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+  .check{display:flex;gap:11px;align-items:flex-start;font-weight:500;margin-top:22px;font-size:15.5px}
+  .check input{margin-top:4px;width:20px;height:20px;flex:none;accent-color:var(--orange)}
+  button.primary{margin-top:24px;width:100%;font:700 18px var(--body);padding:16px;border:2px solid var(--black);border-radius:13px;background:var(--orange);color:var(--black);cursor:pointer;box-shadow:0 4px 0 var(--black);transition:transform .08s,box-shadow .08s}
+  button.primary:active{transform:translateY(3px);box-shadow:0 1px 0 var(--black)}
   button.primary:disabled{opacity:.65;cursor:wait}
-  button.ghost{font:700 16px var(--body);padding:11px 18px;border:2px solid var(--ink);border-radius:11px;background:#fff;color:var(--ink);cursor:pointer}
-  .banner{border-left:6px solid var(--bad);background:#fff4f3;padding:13px 15px;border-radius:8px;margin-bottom:6px}
+  button.ghost{font:700 16px var(--body);padding:11px 18px;border:2px solid var(--black);border-radius:11px;background:var(--white);color:var(--black);cursor:pointer}
+  .banner{border-left:6px solid var(--bad);background:var(--white);color:var(--text);padding:13px 15px;border-radius:8px;margin-bottom:6px}
 
   /* QR on the confirmation ticket */
   .qr{display:flex;gap:18px;align-items:center;margin:2px 0 18px}
-  .qr img{width:168px;height:168px;image-rendering:pixelated;border:2px solid var(--ink);border-radius:10px;padding:6px;background:#fff;flex:none}
+  .qr img{width:168px;height:168px;image-rendering:pixelated;border:2px solid var(--black);border-radius:10px;padding:6px;background:var(--white);flex:none}
   .qr p{margin:0;font-weight:700}
-  .qr span{display:block;color:var(--muted);font-weight:400;font-size:15px;margin-top:4px}
+  .qr span{display:block;color:var(--muted);font-weight:500;font-size:15px;margin-top:4px}
   @media (max-width:420px){.qr{flex-direction:column;align-items:flex-start}}
   /* confirmation */
-  .ref{font:800 clamp(22px,7vw,40px)/1 var(--display);letter-spacing:.04em;color:var(--gold);margin:6px 0 0;white-space:nowrap}
+  .ref{font:700 clamp(20px,6.4vw,34px)/1.1 var(--font-mono);letter-spacing:var(--ref-spacing);color:var(--orange);margin:8px 0 0;white-space:nowrap}
   .who{font-weight:700;font-size:20px;margin:0}
   .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0 0 6px}
-  .facts dt{color:var(--muted)} .facts dd{margin:0;font-weight:500;word-break:break-word}
+  .facts dt{color:var(--muted)} .facts dd{margin:0;font-weight:600;word-break:break-word}
 
   @media (max-width:380px){.facts{grid-template-columns:1fr}.facts dd{margin-bottom:8px}}
   /* status panels */
   .notice{display:flex;gap:16px;align-items:flex-start}
   .notice svg{flex:none;width:44px;height:44px}
   .notice h2{margin-top:2px}
-  .skeleton{height:120px;border-radius:18px;border:2px dashed var(--line);display:grid;place-items:center;color:var(--muted)}
+  .skeleton{height:120px;border-radius:18px;border:2px dashed var(--line);background:var(--white);display:grid;place-items:center;color:var(--muted)}
   @media (prefers-reduced-motion:no-preference){.skeleton{animation:pulse 1.4s ease-in-out infinite}@keyframes pulse{50%{opacity:.5}}}
 
   /* how it works */
   .steps{list-style:none;counter-reset:s;margin:34px 0 0;padding:0;display:grid;gap:12px}
-  .steps li{counter-increment:s;align-content:start;display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:start;background:rgba(255,255,255,.65);border:2px solid var(--line);border-radius:14px;padding:14px 16px}
-  .steps li::before{content:counter(s);display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--ink);color:var(--gold);font:800 17px var(--display)}
+  .steps li{counter-increment:s;align-content:start;display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:start;background:var(--white);border:2px solid var(--line);border-radius:14px;padding:14px 16px}
+  .steps li::before{content:counter(s);display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--black);color:var(--orange);font:800 17px var(--display)}
   .steps b{display:block}
   .steps span{color:var(--muted);font-size:15.5px}
+  @media (max-width:430px){
+    .hero{padding:16px 16px 92px}
+    .logo{width:96px;margin-bottom:10px}
+    .presenter{font-size:13px;margin-bottom:8px}
+    .frame{padding:16px 16px 14px}
+    .frame i{width:20px;height:20px;border-width:3px}
+    h1{font-size:clamp(30px,8.6vw,37px)}
+    .sub{margin-top:8px;font-size:13px}
+    .lede{font-size:14.5px;margin:10px auto}
+    .chips li{font-size:13px;padding:4px 11px}
+    .stub{padding:18px 20px 20px}
+    .meter{margin:10px 0 6px}
+    .body{padding:18px 20px 22px}
+  }
   @media (min-width:700px){main{max-width:760px}.steps{grid-template-columns:repeat(3,1fr)}.steps li{grid-template-columns:1fr;gap:10px}}
+  /* Laptops: a compact hero with a two-line headline, so the first form field is on the first screen at 1280 x 720. */
+  @media (min-width:900px){
+    .hero{padding:14px 20px 70px}
+    .logo{width:100px;margin-bottom:6px}
+    .presenter{margin-bottom:4px;max-width:none}
+    .frame{padding:12px 22px 10px;max-width:560px}
+    h1{font-size:46px}
+    .sub{margin-top:6px}
+    .lede{margin:6px auto 8px}
+    main{margin-top:-58px}
+    .stub{padding:18px 24px 18px}
+    .meter{margin:10px 0 6px}
+    .body{padding:16px 24px 24px}
+  }
+  /* Confirmation state: a smaller hero without tagline and chip, so the QR code is on the first screen. */
+  .confirmed .lede,.confirmed .chips{display:none}
+  .confirmed .hero{padding-bottom:84px}
+  .confirmed .presenter{margin-bottom:2px}
+  .confirmed .frame{padding-top:12px;padding-bottom:10px}
+  .confirmed h1{font-size:clamp(26px,7.4vw,40px)}
+  /* Groups with more than 20 seats get a bar instead of dots (up to 500 dots would push the form off the screen). */
+  .seatbar{display:block;width:100%;height:16px;border:2px solid var(--on-dark);border-radius:999px;background:linear-gradient(90deg,var(--orange) var(--taken),transparent var(--taken))}
 
-  footer{max-width:760px;margin:30px auto 0;padding:22px 20px 44px;border-top:2px solid var(--line);color:var(--muted);font-size:15px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  footer{max-width:760px;margin:30px auto 0;padding:22px 20px 44px;border-top:2px solid var(--line);color:var(--muted);font-size:15px}
   @media print{
     @page{margin:12mm}
     *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -128,18 +153,18 @@
 </head>
 <body>
 <header class="hero">
-  <div class="beams" aria-hidden="true"><div class="beam a"></div><div class="beam b"></div><div class="beam c"></div></div>
+  <img class="hero-art" src="assets/hero-bg.svg" alt="" aria-hidden="true" fetchpriority="high" decoding="async"><div class="hero-shade" aria-hidden="true"></div>
   <div class="hero-inner">
-    <p class="presenter">AHK Ghana presents</p>
+    <img class="logo" src="assets/educata-logo-light.png" alt="educataGhana" width="132" height="45">
+    <p class="presenter">Delegation of German Industry and Commerce in Ghana presents</p>
     <div class="frame">
       <i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>
-      <span class="rec"><b></b>Content Creator Contest</span>
-      <h1>Educata<br>2026</h1>
+      <h1>Content Creator Contest</h1>
+      <p class="sub">educataGhana 2026</p>
     </div>
     <p class="lede">Evening Event Registration. Strictly by invitation.</p>
     <ul class="chips">
-      <li>Evening event</li>
-      <li>One seat per invited guest</li>
+      <li>One seat per invited participant</li>
       <li id="eventline" class="hl hidden"></li>
     </ul>
   </div>
@@ -152,7 +177,7 @@
     <div class="ticket"><div class="body notice">
       <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20" fill="#fff4f3" stroke="#B3261E" stroke-width="3"/><path d="M22 12v13M22 31v2" stroke="#B3261E" stroke-width="4" stroke-linecap="round"/></svg>
       <div><h2>We could not verify this invitation</h2>
-      <p class="hint">The link is missing or incorrect. Use the exact link from your invitation, or contact the AHK Ghana team who invited you.</p></div>
+      <p class="hint">The link is missing or incorrect. Use the exact link from your invitation, or contact the Delegation of German Industry and Commerce in Ghana team who invited you.</p></div>
     </div></div>
   </section>
 
@@ -196,7 +221,7 @@
 
           <label class="check" for="consent">
             <input type="checkbox" id="consent" name="consent">
-            <span>I agree that AHK Ghana may store and use these details to organise this event and admit me at the door.</span>
+            <span>I agree that the Delegation of German Industry and Commerce in Ghana may store and use these details to organise this event and admit me at the door.</span>
           </label>
           <div class="err" id="err-consent"></div>
 
@@ -209,7 +234,7 @@
   <section id="done" class="hidden" aria-live="polite">
     <div class="ticket">
       <div class="stub">
-        <small>Admit one. Educata 2026</small>
+        <small>Admit one. Content Creator Contest</small>
         <p class="who" id="donewho"></p>
         <p class="ref" id="doneref"></p>
       </div>
@@ -240,8 +265,7 @@
 </main>
 
 <footer class="noprint">
-  <span>AHK Ghana, Delegation of German Industry and Commerce in Ghana</span>
-  <a href="admin.html">Organizer sign-in</a>
+  <span>Delegation of German Industry and Commerce in Ghana</span>
 </footer>
 
 <script type="module">
@@ -251,7 +275,7 @@ import { parseCode, availability, tryRegister, validateForm, cryptoRand, scanUrl
 import { FIREBASE_CONFIG, EVENT_LINE, EMAIL_ENABLED, PUBLIC_BASE_URL } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
-const show = (id) => { for (const s of ["loading","badcode","unavailable","formwrap","done"]) $(s).classList.toggle("hidden", s !== id); };
+const show = (id) => { for (const s of ["loading","badcode","unavailable","formwrap","done"]) $(s).classList.toggle("hidden", s !== id); document.body.classList.toggle("confirmed", id === "done"); };
 
 const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
@@ -264,11 +288,12 @@ function renderGroup(g) {
   const a = availability(g);
   $("groupname").textContent = g.name;
   const m = $("meter"); m.replaceChildren();
-  for (let i = 0; i < g.cap; i++) { const d = document.createElement("span"); d.className = "dot" + (i < g.count ? " taken" : ""); m.appendChild(d); }
+  if (g.cap > 20) { const b = document.createElement("span"); b.className = "seatbar"; b.style.setProperty("--taken", Math.min(100, (100 * g.count) / g.cap) + "%"); m.appendChild(b); }
+  else for (let i = 0; i < g.cap; i++) { const d = document.createElement("span"); d.className = "dot" + (i < g.count ? " taken" : ""); m.appendChild(d); }
   m.setAttribute("aria-label", `${g.count} of ${g.cap} seats taken`);
   $("seatsline").textContent = a.state === "open" ? `${a.remaining} of ${g.cap} seats left for your group` : "";
-  if (a.state === "full") { $("unavailable-title").textContent = "All seats for your group are taken"; $("unavailable-text").textContent = "Registration for this group is closed because every seat has been claimed. If you think this is a mistake, contact the AHK Ghana team who invited you."; show("unavailable"); }
-  else if (a.state === "closed") { $("unavailable-title").textContent = "Registration is closed for your group"; $("unavailable-text").textContent = "Contact the AHK Ghana team who invited you if you need a seat."; show("unavailable"); }
+  if (a.state === "full") { $("unavailable-title").textContent = "All seats for your group are taken"; $("unavailable-text").textContent = "Registration for this group is closed because every seat has been claimed. If you think this is a mistake, contact the Delegation of German Industry and Commerce in Ghana team who invited you."; show("unavailable"); }
+  else if (a.state === "closed") { $("unavailable-title").textContent = "Registration is closed for your group"; $("unavailable-text").textContent = "Contact the Delegation of German Industry and Commerce in Ghana team who invited you if you need a seat."; show("unavailable"); }
   else if (!$("done").classList.contains("hidden")) { /* stay on confirmation */ }
   else { show("formwrap"); $("submit").disabled = false; }
 }
@@ -352,10 +377,10 @@ $("regform").addEventListener("submit", async (ev) => {
       show("done"); window.scrollTo(0, 0);
     } else if (r.reason === "full" || r.reason === "closed") {
       $("unavailable-title").textContent = r.reason === "full" ? "All seats for your group were just taken" : "Registration is closed for your group";
-      $("unavailable-text").textContent = "Your details were not saved. Contact the AHK Ghana team who invited you.";
+      $("unavailable-text").textContent = "Your details were not saved. Contact the Delegation of German Industry and Commerce in Ghana team who invited you.";
       show("unavailable");
     } else if (r.reason === "duplicate-or-denied") {
-      banner("This email address may already be registered for Educata 2026. Each person can register once. If you did not register before, contact the AHK Ghana team.");
+      banner("This email address may already be registered for Educata 2026. Each person can register once. If you did not register before, contact the Delegation of German Industry and Commerce in Ghana team.");
     } else if (r.reason === "network") {
       banner("Connection problem. Your seat was not reserved. Check your internet and press the button again.");
     } else if (r.reason === "bad-code") {

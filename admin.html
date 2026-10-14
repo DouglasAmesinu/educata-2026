@@ -5,33 +5,59 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Educata 2026 admin</title>
 <meta name="robots" content="noindex, nofollow">
+<link rel="preload" href="assets/fonts/montserrat-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/brand.css">
 <style>
-  :root{--ink:#1B1535;--muted:#5B5675;--line:#cfc9e0;--paper:#EEEBF5;--accent:#D6336C;--bad:#B3261E;--ok:#1F7A4D}
+  /* Colours and fonts come from assets/brand.css. */
   *{box-sizing:border-box}
-  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-  main{max-width:1100px;margin:0 auto;padding:24px 16px 80px}
-  h1{font-size:26px;margin:0 0 4px} h2{font-size:18px;margin:28px 0 8px}
-  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+  body{margin:0;background:var(--page);color:var(--text);font:500 15px/1.5 var(--font-body)}
+  .top{background:var(--black);color:var(--white);display:flex;align-items:center;gap:18px;padding:14px 24px}
+  .top img{width:120px;height:auto;display:block}
+  .top h1{font:800 24px/1 var(--font-head);margin:0;padding-left:18px;border-left:2px solid var(--muted)}
+  main{max-width:1180px;margin:0 auto;padding:20px 16px 80px}
+  h2{font:800 20px/1.2 var(--font-head);margin:40px 0 10px;padding-bottom:8px;border-bottom:4px solid var(--orange);display:inline-block}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}
   button,input{font:inherit}
-  button{padding:8px 12px;border:2px solid var(--ink);border-radius:8px;background:#fff;color:var(--ink);cursor:pointer}
-  button.pri{background:var(--accent);color:#fff}
-  button.danger{border-color:var(--bad);color:var(--bad)}
-  input[type=text],input[type=email],input[type=password],input[type=search]{padding:8px 10px;border:2px solid var(--line);border-radius:8px;min-width:220px}
-  button:focus-visible,input:focus-visible{outline:3px solid #F2B33D;outline-offset:2px}
-  table{width:100%;border-collapse:collapse;background:#fff;border:2px solid var(--ink)}
-  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-  th{background:#e3def0}
+  button{min-height:40px;padding:8px 14px;border:2px solid var(--black);border-radius:8px;background:var(--white);color:var(--black);font-weight:600;cursor:pointer}
+  button:hover{background:var(--page)}
+  button.pri{background:var(--orange);color:var(--black)}
+  button.pri:hover{background:var(--orange);box-shadow:0 3px 0 var(--black)}
+  button.danger{background:var(--bad);border-color:var(--bad);color:var(--white);margin-left:14px}
+  button.danger:hover{background:var(--bad);box-shadow:0 3px 0 var(--black)}
+  input[type=text],input[type=email],input[type=password],input[type=search]{min-height:40px;padding:8px 12px;border:2px solid var(--grey-300);border-radius:8px;min-width:220px;background:var(--white);color:var(--text)}
+  #q{min-width:min(420px,100%)}
+  button:focus-visible,input:focus-visible{outline:3px solid var(--black);outline-offset:2px;border-color:var(--orange)}
+  table{width:100%;border-collapse:collapse;background:var(--white);border:1px solid var(--grey-300)}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--grey-300);vertical-align:middle}
+  th{background:var(--grey-300);color:var(--black);font-weight:700;white-space:nowrap}
+  tbody tr:hover{background:var(--page)}
+  td button{margin:2px 0}
+  /* Invite link with its Copy button, and each row's actions, stay on one line. */
+  #groups td:nth-child(4),#groups td:nth-child(5){white-space:nowrap}
+  #groups td:nth-child(4) input{min-width:0;width:230px;margin-right:6px}
+  #groups td:first-child{min-width:150px}
+  #regs td:first-child{font-family:var(--font-mono);letter-spacing:var(--ref-spacing);white-space:nowrap}
+  #regs td:nth-child(3){overflow-wrap:anywhere;min-width:160px}
+  .closed{color:var(--muted);font-weight:700}
   .wrap{overflow-x:auto}
   .full{color:var(--bad);font-weight:700} .ok{color:var(--ok);font-weight:700}
-  .msg{padding:10px 12px;border-left:6px solid var(--ink);background:#fff;margin:12px 0}
+  .msg{padding:12px 14px;border-left:6px solid var(--black);background:var(--white);margin:12px 0}
   .msg.bad{border-color:var(--bad)}
   .hidden{display:none}
-  code{background:#fff;border:1px solid var(--line);padding:1px 5px;border-radius:4px}
+  code{background:var(--white);border:1px solid var(--grey-300);padding:1px 5px;border-radius:4px}
+  @media (max-width:700px){.top{padding:12px 16px}.top img{width:96px}main{padding:16px 12px 60px}
+    /* Phones: tables still scroll sideways, with a thin visible scrollbar, a hint line and the first column held in place. */
+    .wrap{scrollbar-width:thin;scrollbar-color:var(--muted) var(--grey-300)}
+    table{border-collapse:separate;border-spacing:0}
+    .wrap::after{content:"Scroll sideways for more columns \2192";position:sticky;left:0;display:block;padding:6px 2px 0;font-size:13px;color:var(--muted)}
+    #groups th:first-child,#groups td:first-child,#regs th:first-child,#regs td:first-child{position:sticky;left:0;z-index:1;background:var(--white);box-shadow:2px 0 0 var(--grey-300)}
+    #groups th:first-child,#regs th:first-child{background:var(--grey-300)}
+    #groups td:first-child{min-width:120px;max-width:150px}}
 </style>
 </head>
 <body>
+<header class="top"><img src="assets/educata-logo-light.png" alt="educataGhana" width="120" height="41"><h1>Admin</h1></header>
 <main>
-  <h1>Educata 2026 admin</h1>
   <div id="msg" class="msg hidden" role="status"></div>
 
   <section id="login">
@@ -94,6 +120,7 @@ onAuthStateChanged(auth, async (user) => {
   const a = await getDoc(doc(db, "admins", user.uid)).catch(() => null);
   if (!a || !a.exists()) { say("This account is signed in but is not on the admin list. Ask the owner to add admins/" + user.uid + " in the Firebase console.", true); await signOut(auth); return; }
   $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("who").textContent = user.email; say("Signed in.");
+  setTimeout(() => { if ($("msg").textContent === "Signed in.") $("msg").classList.add("hidden"); }, 3000); // errors stay visible
   if (!unsubs.length) listen();
 });
 
@@ -131,7 +158,7 @@ function renderGroups() {
     const tr = el("tr");
     tr.append(el("td", g.name));
     tr.append(el("td", `${g.count} / ${g.cap}`, g.count >= g.cap ? "full" : ""));
-    tr.append(el("td", !g.open ? "Closed by admin" : g.count >= g.cap ? "Full" : "Open", g.open && g.count < g.cap ? "ok" : "full"));
+    tr.append(el("td", !g.open ? "Closed by admin" : g.count >= g.cap ? "Full" : "Open", !g.open ? "closed" : g.count >= g.cap ? "full" : "ok"));
     const code = invites[g.id]; const lk = el("td");
     if (code) { const inp = el("input"); inp.type = "text"; inp.readOnly = true; inp.value = linkFor(code); inp.style.minWidth = "260px"; lk.append(inp); const cb = el("button", "Copy"); cb.onclick = async () => { await navigator.clipboard.writeText(inp.value); say("Copied link for " + g.name); }; lk.append(cb); }
     else lk.textContent = "No code";
