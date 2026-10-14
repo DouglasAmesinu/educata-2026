@@ -43,10 +43,7 @@
   </section>
 
   <section id="app" class="hidden">
-    <div class="bar"><a href="door.html">Door check-in page</a><span id="who"></span><button id="signout">Sign out</button><button id="reload">Refresh</button></div>
-
-    <h2>Live gate: scanned guests appear here</h2>
-    <div id="gate"></div>
+    <div class="bar"><span id="who"></span><button id="signout">Sign out</button></div>
 
     <div id="seedbox" class="msg hidden">
       No seat groups exist yet.
@@ -70,52 +67,49 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, getDocs, collection, writeBatch, runTransaction, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, collection, writeBatch, runTransaction, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { GROUP_PLAN, makeCode, makeGroupId, cryptoRand, toCSV, inviteLink } from "./core.js";
 import { FIREBASE_CONFIG, PUBLIC_BASE_URL } from "./config.js";
-import { mountGate } from "./gate.js";
 
 const $ = (id) => document.getElementById(id);
 const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getFirestore(app);
-let groups = [], invites = {}, regs = [], gateMounted = false;
+let groups = [], invites = {}, regs = [], unsubs = [];
 const ord = (id) => { const i = GROUP_PLAN.findIndex((p) => p.id === id); return i < 0 ? 1e6 : i; };
 
 function say(text, bad) { const m = $("msg"); m.textContent = text; m.className = "msg" + (bad ? " bad" : ""); }
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
 const linkFor = (code) => inviteLink(PUBLIC_BASE_URL, location.href, code);
+const hhmm = (ts) => { const d = ts && ts.toDate ? ts.toDate() : ts instanceof Date ? ts : null; return d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""; };
 
 $("signin").onclick = async () => {
   try { await signInWithEmailAndPassword(auth, $("em").value.trim(), $("pw").value); }
   catch (e) { say("Sign in failed: " + (e.code || e.message), true); }
 };
 $("signout").onclick = () => signOut(auth);
-$("reload").onclick = () => load();
 
 onAuthStateChanged(auth, async (user) => {
-  if (!user) { $("login").classList.remove("hidden"); $("app").classList.add("hidden"); return; }
+  if (!user) { unsubs.forEach((u) => u()); unsubs = []; $("login").classList.remove("hidden"); $("app").classList.add("hidden"); return; }
   const a = await getDoc(doc(db, "admins", user.uid)).catch(() => null);
   if (!a || !a.exists()) { say("This account is signed in but is not on the admin list. Ask the owner to add admins/" + user.uid + " in the Firebase console.", true); await signOut(auth); return; }
   $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("who").textContent = user.email; say("Signed in.");
-  load();
-  if (!gateMounted) {
-    gateMounted = true;
-    mountGate($("gate"), { db, user, hooks: {
-      // A scan fills the search box so the registrations table below jumps straight to that guest.
-      onScan: (r) => { $("q").value = r; renderRegs(); },
-      onChange: (id, data) => { const i = regs.findIndex((x) => x.id === id); if (i >= 0) regs[i] = { ...regs[i], ...data }; renderRegs(); },
-    } });
-  }
+  if (!unsubs.length) listen();
 });
 
-async function load() {
-  const [gs, is, rs] = await Promise.all([getDocs(collection(db, "groups")), getDocs(collection(db, "invites")), getDocs(collection(db, "registrations"))]);
-  groups = gs.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => ord(a.id) - ord(b.id));
-  invites = {}; is.docs.forEach((d) => (invites[d.data().gid] = d.id));
-  regs = rs.docs.map((d) => ({ id: d.id, ...d.data() }));
-  $("seedbox").classList.toggle("hidden", groups.length > 0);
-  renderGroups(); renderRegs();
+// Live listeners: the first snapshot reads every document once, after that only changed documents are read.
+// Nothing reloads the whole list after an action; the listeners redraw the tables.
+function listen() {
+  const fail = (what) => (e) => say("Live updates for " + what + " stopped: " + (e.code || e.message) + ". Reload the page.", true);
+  unsubs = [
+    onSnapshot(collection(db, "groups"), (s) => {
+      groups = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => ord(a.id) - ord(b.id));
+      $("seedbox").classList.toggle("hidden", groups.length > 0);
+      renderGroups(); renderRegs();
+    }, fail("seat groups")),
+    onSnapshot(collection(db, "invites"), (s) => { invites = {}; s.docs.forEach((d) => (invites[d.data().gid] = d.id)); renderGroups(); }, fail("invite links")),
+    onSnapshot(collection(db, "registrations"), (s) => { regs = s.docs.map((d) => ({ id: d.id, ...d.data() })); renderRegs(); }, fail("registrations")),
+  ];
 }
 
 $("seed").onclick = async () => {
@@ -126,7 +120,7 @@ $("seed").onclick = async () => {
     b.set(doc(db, "groups", g.id), { name: g.name, category: g.category, cap: g.cap, count: 0, open: true, lastReg: "" });
     b.set(doc(db, "invites", code), { gid: g.id });
   }
-  try { await b.commit(); say("Created " + GROUP_PLAN.length + " groups."); load(); } catch (e) { say("Seeding failed: " + (e.code || e.message), true); }
+  try { await b.commit(); say("Created " + GROUP_PLAN.length + " groups."); } catch (e) { say("Seeding failed: " + (e.code || e.message), true); }
 };
 
 function renderGroups() {
@@ -143,15 +137,15 @@ function renderGroups() {
     else lk.textContent = "No code";
     tr.append(lk);
     const ac = el("td");
-    const tog = el("button", g.open ? "Close" : "Reopen"); tog.onclick = async () => { await updateDoc(doc(db, "groups", g.id), { open: !g.open }); load(); };
-    const cp = el("button", "Set cap"); cp.onclick = async () => { const v = parseInt(prompt("New cap for " + g.name + " (currently " + g.cap + "):", g.cap), 10); if (!Number.isInteger(v) || v < g.count || v > 500) return say("Cap must be a whole number from " + g.count + " to 500.", true); await updateDoc(doc(db, "groups", g.id), { cap: v }); load(); };
-    const rn = el("button", "Rename"); rn.onclick = async () => { const v = (prompt("Name for this group:", g.name) || "").trim(); if (!v) return; await updateDoc(doc(db, "groups", g.id), { name: v.slice(0, 100) }); load(); };
+    const tog = el("button", g.open ? "Close" : "Reopen"); tog.onclick = async () => { await updateDoc(doc(db, "groups", g.id), { open: !g.open }); };
+    const cp = el("button", "Set cap"); cp.onclick = async () => { const v = parseInt(prompt("New cap for " + g.name + " (currently " + g.cap + "):", g.cap), 10); if (!Number.isInteger(v) || v < g.count || v > 500) return say("Cap must be a whole number from " + g.count + " to 500.", true); await updateDoc(doc(db, "groups", g.id), { cap: v }); };
+    const rn = el("button", "Rename"); rn.onclick = async () => { const v = (prompt("Name for this group:", g.name) || "").trim(); if (!v) return; await updateDoc(doc(db, "groups", g.id), { name: v.slice(0, 100) }); };
     const dg = el("button", "Delete", "danger");
     dg.onclick = async () => {
       if (g.count > 0) return say("Cannot delete " + g.name + " while it has " + g.count + " registration(s). Remove them first.", true);
       if (!confirm("Delete group " + g.name + " and its invite link? The link will stop working.")) return;
       const b = writeBatch(db); b.delete(doc(db, "groups", g.id)); if (invites[g.id]) b.delete(doc(db, "invites", invites[g.id]));
-      try { await b.commit(); say("Deleted " + g.name); load(); } catch (e) { say("Delete failed: " + (e.code || e.message), true); }
+      try { await b.commit(); say("Deleted " + g.name); } catch (e) { say("Delete failed: " + (e.code || e.message), true); }
     };
     ac.append(tog, " ", cp, " ", rn, " ", dg); tr.append(ac); tb.append(tr);
   }
@@ -168,9 +162,7 @@ function renderRegs() {
   for (const r of rows) {
     const tr = el("tr");
     [r.ref, r.name, r.email, nameOf[r.gid] || r.gid, r.org || "", r.phone || ""].forEach((v) => tr.append(el("td", v)));
-    const ci = el("td"); const cb = el("button", r.checkedIn ? "Checked in. Undo" : "Check in");
-    cb.onclick = async () => { await updateDoc(doc(db, "registrations", r.id), { checkedIn: !r.checkedIn, checkedInAt: r.checkedIn ? null : serverTimestamp() }); r.checkedIn = !r.checkedIn; renderRegs(); }; // no full reload: a reload costs about 300 reads, and door check-in would burn the free daily quota
-    ci.append(cb); tr.append(ci);
+    tr.append(el("td", r.checkedIn ? ("Checked in " + hhmm(r.checkedInAt)).trim() : "")); // read-only: check-in happens only on door.html
     const del = el("td"); const db_ = el("button", "Remove", "danger");
     db_.onclick = async () => {
       if (!confirm("Remove " + r.name + " and free their seat?")) return;
@@ -178,7 +170,6 @@ function renderRegs() {
         const gRef = doc(db, "groups", r.gid); const g = (await tx.get(gRef)).data();
         tx.delete(doc(db, "registrations", r.id)); tx.update(gRef, { count: Math.max(0, g.count - 1) });
       });
-      load();
     };
     del.append(db_); tr.append(del); tb.append(tr);
   }
@@ -194,7 +185,7 @@ $("addgroup").onclick = async () => {
   const b = writeBatch(db);
   b.set(doc(db, "groups", gid), { name, category: "Custom", cap, count: 0, open: true, lastReg: "" });
   b.set(doc(db, "invites", code), { gid });
-  try { await b.commit(); say("Added " + name + ". Copy its link from the table."); load(); } catch (e) { say("Add failed: " + (e.code || e.message), true); }
+  try { await b.commit(); say("Added " + name + ". Copy its link from the table."); } catch (e) { say("Add failed: " + (e.code || e.message), true); }
 };
 
 $("recon").onclick = async () => {
@@ -202,7 +193,7 @@ $("recon").onclick = async () => {
   const b = writeBatch(db); let n = 0;
   for (const g of groups) { const real = counts[g.id] || 0; if (real !== g.count) { b.update(doc(db, "groups", g.id), { count: real }); n++; } }
   if (!n) return say("Seat counts already match registrations.");
-  await b.commit(); say("Corrected " + n + " group count(s)."); load();
+  await b.commit(); say("Corrected " + n + " group count(s).");
 };
 
 $("csv").onclick = () => {
