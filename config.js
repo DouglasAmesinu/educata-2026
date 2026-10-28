@@ -15,7 +15,7 @@ export const EVENT_LINE = "";
 
 // Set to true ONLY after the confirmation email function is deployed and a test email has arrived
 // (see README, Part 5). While false, guests are told to save or print their reference.
-export const EMAIL_ENABLED = true;
+export const EMAIL_ENABLED = false;
 
 // The public address guests will see in invite links, for example "https://educata.yourdomain.com/".
 // Leave "" until your custom domain works; then links use whatever address the admin page was opened from.

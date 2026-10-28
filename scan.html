@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Content Creator Contest scanner</title>
+<title>Content Creators Contest scanner</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js">
@@ -27,13 +27,37 @@
   input{background:var(--white);color:var(--text)}
   input:focus-visible,button:focus-visible{outline:3px solid var(--black);outline-offset:2px;border-color:var(--orange)}
   button{background:var(--orange);color:var(--black);border-color:var(--black);font-weight:700;cursor:pointer}
+  .warn{margin:0 0 14px;padding:12px 14px;border-left:6px solid var(--orange);background:var(--white);color:var(--text);border-radius:8px;text-align:left;font-weight:700;font-size:16px}
+  .foot{margin:18px 0 0;font-size:15px;color:var(--on-dark);overflow-wrap:anywhere}
+  .foot p{margin:0 0 4px}
+  .foot button{width:auto;min-height:44px;margin:8px 0 0;padding:8px 18px;background:transparent;color:var(--white);border-color:var(--white)}
+  /* Continuous scanner (scan.html without ?ref): live camera, big flash per scan, last 5 references. */
+  .cam{position:relative;width:100%;aspect-ratio:4/3;background:#111;border:3px solid var(--orange);border-radius:16px;overflow:hidden}
+  .cam video{display:block;width:100%;height:100%;object-fit:cover}
+  .aim{position:absolute;inset:18%;border:3px dashed rgba(255,255,255,.7);border-radius:12px;pointer-events:none}
+  .flash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;background:var(--ok);color:var(--white);text-align:center}
+  .flash.wait,.flash.fail{background:var(--black)}
+  .flash span{font:700 28px/1.1 var(--font-mono);letter-spacing:var(--ref-spacing);overflow-wrap:anywhere}
+  .flash b{font:800 44px/1.1 var(--font-head)}
+  .flash.wait b,.flash.fail b{font-size:24px}
+  .camstatus{margin:12px 0 0;font-size:16px;color:var(--on-dark);text-align:left}
+  .camstatus.bad{color:var(--white);font-weight:700;border-left:6px solid var(--bad);padding-left:10px}
+  .tools{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-top:10px}
+  .tools button{width:auto;min-height:44px;margin:0;padding:8px 18px;background:transparent;color:var(--white);border-color:var(--white)}
+  .pending{font-weight:800;color:var(--orange);margin-left:auto}
+  .recent{list-style:none;margin:12px 0 0;padding:0;text-align:left}
+  .recent li{display:flex;gap:12px;align-items:baseline;padding:8px 0;border-top:1px solid #333;color:var(--on-dark);font-size:15px}
+  .recent .r{font:700 18px var(--font-mono);letter-spacing:var(--ref-spacing);color:var(--white)}
+  .recent .st{margin-left:auto;font-weight:700;color:var(--white)}
+  .recent .st.pend{color:var(--orange)}
   .hidden{display:none!important}
 </style>
 </head>
 <body>
 <main>
   <img class="logo" src="assets/educata-logo-light.png" alt="educataGhana" width="110" height="37">
-  <h1>Content Creator Contest scanner</h1>
+  <h1>Content Creators Contest scanner</h1>
+  <p class="warn hidden" id="warn" role="alert">Open this link in Chrome or Safari so your sign-in is remembered.</p>
   <!-- The login box stays hidden until we KNOW there is no saved session, so a signed-in phone never sees it. -->
   <div class="box hidden" id="login">
     <p style="margin-top:0"><b>Staff sign-in</b> (once per phone)</p>
@@ -47,13 +71,26 @@
     <div class="ref" id="ref"></div>
     <p class="muted" id="sub"></p>
   </div>
+  <!-- Continuous scanner: shown only when the page is opened without ?ref. Shows references only, never participant details. -->
+  <div id="scanner" class="hidden">
+    <div class="cam"><video id="video" playsinline muted autoplay></video><div class="aim" aria-hidden="true"></div>
+      <div class="flash hidden" id="flash" aria-live="assertive"><span id="flashref"></span><b id="flashword"></b></div></div>
+    <p class="camstatus" id="camstatus">Starting camera...</p>
+    <div class="tools"><button class="hidden" id="torch" type="button" aria-pressed="false">Torch on</button><span class="pending hidden" id="pending"></span></div>
+    <ol class="recent" id="recent" aria-label="Last 5 scans"></ol>
+  </div>
+  <div class="foot" id="foot">
+    <p class="hidden" id="who"></p>
+    <p id="saved"></p>
+    <button class="hidden" id="signout" type="button">Sign out</button>
+  </div>
 </main>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { parseRef } from "./core.js";
-import { FIREBASE_CONFIG } from "./config.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { parseRef, refFromScan, createScanQueue } from "./core.js";
+import { FIREBASE_CONFIG, PUBLIC_BASE_URL } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const ref = parseRef(location.search);
@@ -69,12 +106,136 @@ function say(cls, msg, sub, showRef) {
   $("msg").className = "big " + cls; $("msg").textContent = msg;
   $("ref").textContent = showRef ? ref : ""; $("sub").textContent = sub || "";
 }
-function askLogin(err) { $("status").classList.add("hidden"); $("login").classList.remove("hidden"); $("loginerr").textContent = err || ""; }
+function askLogin(err) { $("status").classList.add("hidden"); $("scanner").classList.add("hidden"); $("login").classList.remove("hidden"); $("loginerr").textContent = err || ""; }
 
+// Keep the sign-in on this phone: localStorage, else IndexedDB, else memory only (lost when the tab closes, so warn).
+// In-app browsers (Facebook, Instagram, LINE, WhatsApp, the Google app) often forget storage between links: warn there too.
+const IN_APP = /FBAN|FBAV|Instagram|Line\/|WhatsApp|GSA\//.test(navigator.userAgent);
+function localOk() { try { const k = "__probe" + Math.random(); localStorage.setItem(k, "1"); localStorage.removeItem(k); return true; } catch (e) { return false; } }
+function idbOk() { return new Promise((res) => { try { const r = indexedDB.open("__probe"); r.onsuccess = () => { r.result.close(); res(true); }; r.onerror = () => res(false); setTimeout(() => res(false), 1500); } catch (e) { res(false); } }); }
+async function choosePersistence() {
+  const tries = [[localOk(), browserLocalPersistence], [null, indexedDBLocalPersistence]];
+  for (const [ok, p] of tries) { if (ok === false || (ok === null && !(await idbOk()))) continue; try { await setPersistence(auth, p); return true; } catch (e) { /* try the next one */ } }
+  await setPersistence(auth, inMemoryPersistence).catch(() => {});
+  return false;
+}
+const saved = await choosePersistence();
+const remembered = saved && !IN_APP;
+$("warn").classList.toggle("hidden", remembered);
+$("saved").textContent = "Sign-in saved on this phone: " + (remembered ? "yes" : "no");
+
+$("signout").onclick = () => signOut(auth); // only ever on purpose: the page never signs anyone out by itself
 $("signin").onclick = async () => { try { $("loginerr").textContent = ""; await signInWithEmailAndPassword(auth, $("em").value.trim(), $("pw").value); } catch (e) { $("loginerr").textContent = "Sign in failed: " + (e.code || e.message); } };
+
+// ---- Continuous scanner (no ?ref in the address) ----
+const SCANNER = !new URLSearchParams(location.search).has("ref");
+const HOSTS = [location.host]; try { if (PUBLIC_BASE_URL) HOSTS.push(new URL(PUBLIC_BASE_URL).host); } catch (e) { /* no site address set */ }
+const QUEUE_KEY = "educata-scan-queue";
+let current = null, stream = null, started = false, flashTimer = null, lastFlash = "", queue = null;
+const recent = [];
+// The same single write as the one-scan flow. A write that hangs counts as failed after 12 seconds and is retried.
+async function sendScan(r) {
+  if (!current) throw Object.assign(new Error("signed out"), { code: "unauthenticated" });
+  const { getFirestore, addDoc, collection, serverTimestamp } = await fsPromise;
+  let t; const timeout = new Promise((_, rej) => { t = setTimeout(() => rej(Object.assign(new Error("timeout"), { code: "deadline-exceeded" })), 12000); });
+  try { await Promise.race([addDoc(collection(getFirestore(app), "scans"), { ref: r, at: serverTimestamp(), by: current.email }), timeout]); } finally { clearTimeout(t); }
+}
+const hhmmss = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+function flash(r, word, cls, ms) {
+  lastFlash = r; clearTimeout(flashTimer);
+  $("flash").className = "flash " + cls; $("flashref").textContent = r; $("flashword").textContent = word;
+  if (ms) flashTimer = setTimeout(() => $("flash").classList.add("hidden"), ms);
+}
+function showRecent(r, t, state) {
+  const i = recent.findIndex((x) => x.ref === r && x.t === t);
+  if (i >= 0) recent[i].state = state; else { recent.unshift({ ref: r, t, state }); recent.length = Math.min(recent.length, 5); }
+  $("recent").replaceChildren(...recent.map((x) => { const li = document.createElement("li"); const a = document.createElement("span"); a.className = "r"; a.textContent = x.ref; const b = document.createElement("span"); b.textContent = hhmmss(x.t); const c = document.createElement("span"); c.className = "st" + (x.state === "Sent" ? "" : " pend"); c.textContent = x.state; li.append(a, b, c); return li; }));
+}
+function camMsg(text, bad) { $("camstatus").textContent = text; $("camstatus").className = "camstatus" + (bad ? " bad" : ""); }
+function showPending(n) { $("pending").textContent = "Pending (" + n + ")"; $("pending").classList.toggle("hidden", n === 0); }
+queue = createScanQueue({
+  send: sendScan,
+  load: () => { try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch (e) { return []; } },
+  save: (items) => { try { localStorage.setItem(QUEUE_KEY, JSON.stringify(items)); } catch (e) { /* storage blocked: the queue still lives in memory */ } },
+  onChange: (ev) => {
+    showPending(ev.type === "sent" ? ev.pending : Math.max(ev.pending, 1));
+    if (ev.type === "queued") { try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) {} flash(ev.ref, "Sending...", "wait"); showRecent(ev.ref, ev.t, "Sending"); }
+    if (ev.type === "sent") { if (ev.ref === lastFlash) flash(ev.ref, "Sent", "ok", 1500); showRecent(ev.ref, ev.t, "Sent"); if (current) camMsg("Scanning. Point the camera at the next QR code."); }
+    if (ev.type === "failed") {
+      // the flash may belong to a later scan waiting behind this one: it is not sent yet either
+      if (ev.ref === lastFlash || $("flash").classList.contains("wait")) flash(lastFlash, "Not sent yet. Will retry.", "fail", 2500);
+      showRecent(ev.ref, ev.t, "Pending");
+      for (const x of recent) if (x.state === "Sending") showRecent(x.ref, x.t, "Pending"); // waiting behind it: also pending
+      camMsg(ev.error && ev.error.code === "permission-denied" ? "This account is not allowed to send scans. Ask the organiser to add it to the staff list." : "No connection. Scans are kept and sent automatically.", true);
+    }
+  },
+});
+if (SCANNER) showPending(queue.pending());
+window.addEventListener("online", () => queue.flush());
+
+async function makeDetector() {
+  if ("BarcodeDetector" in window) {
+    try { const f = await BarcodeDetector.getSupportedFormats(); if (f.includes("qr_code")) { const d = new BarcodeDetector({ formats: ["qr_code"] }); return async (c) => (await d.detect(c)).map((x) => x.rawValue); } } catch (e) { /* fall back to jsQR */ }
+  }
+  const jsQR = (await import("./jsqr.js")).default;
+  // jsQR misreads noisy frames (dim light) when the code is tilted. A second try on the same frame at half size averages
+  // the noise away (tests: noise and tilt that fail at 640 pixels decode at 320). Small codes still decode in the first try.
+  const small = document.createElement("canvas"), sctx = small.getContext("2d", { willReadFrequently: true });
+  const read = (cx, w, h) => { const img = cx.getImageData(0, 0, w, h); const r = jsQR(img.data, w, h, { inversionAttempts: "dontInvert" }); return r ? [r.data] : null; };
+  return async (c, ctx) => {
+    const first = read(ctx, c.width, c.height); if (first) return first;
+    small.width = c.width >> 1; small.height = c.height >> 1; sctx.drawImage(c, 0, 0, small.width, small.height);
+    return read(sctx, small.width, small.height) || [];
+  };
+}
+async function keepAwake() { try { if ("wakeLock" in navigator && document.visibilityState === "visible") await navigator.wakeLock.request("screen"); } catch (e) { /* not supported or refused: the screen may dim */ } }
+document.addEventListener("visibilitychange", () => { if (SCANNER && stream && document.visibilityState === "visible") keepAwake(); });
+
+async function startScanner() {
+  if (started) return; started = true;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return camMsg("This browser cannot open the camera. Open this page in Chrome or Safari.", true);
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 640 } }, audio: false }); }
+  catch (e) {
+    started = false;
+    if (e.name === "NotAllowedError" || e.name === "SecurityError") return camMsg("Camera permission denied. Allow the camera for this site in your browser settings, then reload this page.", true);
+    if (e.name === "NotFoundError" || e.name === "OverconstrainedError" || e.name === "DevicesNotFoundError") return camMsg("No camera found on this device.", true);
+    if (e.name === "NotReadableError") return camMsg("The camera is busy in another app. Close that app, then reload this page.", true);
+    return camMsg("The camera could not start (" + (e.name || e.message) + "). Reload this page.", true);
+  }
+  const video = $("video"); video.srcObject = stream; await video.play().catch(() => {});
+  const track = stream.getVideoTracks()[0];
+  const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+  if (caps && caps.torch) {
+    $("torch").classList.remove("hidden");
+    $("torch").onclick = async () => { const on = $("torch").getAttribute("aria-pressed") !== "true"; try { await track.applyConstraints({ advanced: [{ torch: on }] }); $("torch").setAttribute("aria-pressed", String(on)); $("torch").textContent = on ? "Torch off" : "Torch on"; } catch (e) { $("torch").classList.add("hidden"); } };
+  }
+  keepAwake();
+  const detect = await makeDetector();
+  const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
+  let busy = false;
+  camMsg("Scanning. Point the camera at a QR code.");
+  // About 8 frames a second, each scaled to 640 pixels wide.
+  setInterval(async () => {
+    if (busy || video.readyState < 2 || !video.videoWidth) return;
+    busy = true;
+    try {
+      canvas.width = 640; canvas.height = Math.round((640 * video.videoHeight) / video.videoWidth);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      for (const v of await detect(canvas, ctx)) { const r = refFromScan(v, HOSTS); if (r) queue.add(r); }
+    } catch (e) { /* one bad frame: try the next */ }
+    busy = false;
+  }, 125);
+}
 
 let sent = false;
 onAuthStateChanged(auth, async (user) => {
+  current = user;
+  $("who").textContent = user ? "Signed in as " + (user.email || "staff account") : ""; $("who").classList.toggle("hidden", !user); $("signout").classList.toggle("hidden", !user);
+  if (SCANNER) {
+    if (!user) { askLogin(""); return; }
+    $("status").classList.add("hidden"); $("login").classList.add("hidden"); $("scanner").classList.remove("hidden");
+    startScanner(); queue.flush(); return;
+  }
   if (!ref) { say("bad", "Not a valid ticket QR code.", "Ask the guest for their reference or use the gate laptop.", false); return; }
   if (!user) { askLogin(""); return; }
   if (sent) return;
@@ -89,7 +250,7 @@ onAuthStateChanged(auth, async (user) => {
     say("ok", "Sent to the gate laptop", "Now point your camera at the next participant's QR code.", true);
   } catch (e) {
     clearTimeout(timer); sent = false;
-    if (e.code === "permission-denied") { await signOut(auth).catch(() => {}); askLogin("This account is not allowed to scan. Sign in with a staff account."); }
+    if (e.code === "permission-denied") say("bad", "This account is not allowed to send scans. Ask the organiser to add it to the staff list.", "You are still signed in. Use Sign out below only to switch to another account.", true);
     else say("bad", "Not sent", (e.code || e.message) + ". Check your connection and scan again.", true);
   }
 });

@@ -7,11 +7,13 @@
 <meta name="robots" content="noindex, nofollow">
 <link rel="preload" href="assets/fonts/montserrat-latin-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="assets/brand.css">
-<link rel="preload" href="assets/hero-bg.svg" as="image" type="image/svg+xml">
+<link rel="preload" href="assets/banner-source.jpg" as="image" fetchpriority="high">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js">
 <link rel="modulepreload" href="./core.js">
 <link rel="modulepreload" href="./config.js">
+<link rel="modulepreload" href="./qr.js">
+<link rel="modulepreload" href="./qrcode-lib.js">
 <style>
   /* Colours and fonts come from assets/brand.css. */
   :root{--line:var(--grey-300);--card:var(--white);--display:var(--font-head);--body:var(--font-body)}
@@ -21,24 +23,16 @@
   a{color:inherit}
   .hidden{display:none!important}
 
-  /* ---------- Hero: black, camera viewfinder with orange corners ---------- */
-  /* A dark gradient paints at once; the artwork (or a photo) is layered on top without moving anything.
-     To use a photo instead: put assets/hero.jpg (max 120 KB, max 1600 px wide) in assets, then in this file change
-     hero-bg.svg to hero.jpg in the preload link and in the hero img, and add class "photo" to that img (turns on the dark overlay). */
-  .hero{position:relative;overflow:hidden;background:radial-gradient(90% 70% at 90% 100%,rgba(236,130,35,.22),rgba(236,130,35,0) 60%),var(--black);color:var(--white);padding:28px 20px 112px}
-  .hero-art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
-  .hero-shade{display:none;position:absolute;inset:0;background:rgba(0,0,0,.65)}
-  .hero-art.photo + .hero-shade{display:block}
-  .hero-inner{position:relative;max-width:728px;margin:0 auto;text-align:center}
+  /* ---------- Hero: navy fading to black, the official banner artwork in a rounded frame ---------- */
+  /* The navy matches the banner's own background, so its edge blends in. The h1 is navy too, so it paints before the
+     image loads, and the img width and height attributes reserve its space, so nothing shifts.
+     On short laptop screens the banner is narrower (the 100vh term), so the Full name field and the QR code stay on the first screen. */
+  .hero{background:linear-gradient(180deg,var(--navy) 0%,var(--navy) 55%,var(--black) 100%) var(--navy);color:var(--white);padding:28px 20px 112px}
+  .hero-inner{max-width:1000px;margin:0 auto;text-align:center}
   .logo{display:block;width:132px;height:auto;margin:0 auto 18px}
   .presenter{margin:0 auto 18px;max-width:34ch;font-weight:500;font-size:15.5px;color:var(--on-dark)}
-  .frame{position:relative;padding:30px 22px 26px;margin:0 auto;max-width:640px}
-  .frame i{position:absolute;width:28px;height:28px;border:4px solid var(--orange)}
-  .frame .tl{left:0;top:0;border-right:0;border-bottom:0}
-  .frame .tr{right:0;top:0;border-left:0;border-bottom:0}
-  .frame .bl{left:0;bottom:0;border-right:0;border-top:0}
-  .frame .br{right:0;bottom:0;border-left:0;border-top:0}
-  h1{font:800 clamp(40px,11.5vw,78px)/1.02 var(--display);letter-spacing:-.01em;margin:0;color:var(--white);overflow-wrap:break-word}
+  h1{margin:0 auto;width:100%;max-width:min(1000px,max(300px,(100vh - 560px)*2.5));background:var(--navy);border-radius:16px;border-bottom:3px solid var(--orange);overflow:hidden;line-height:0}
+  h1 img{display:block;width:100%;height:auto}
   .sub{margin:14px 0 0;font-weight:600;font-size:15px;letter-spacing:.06em;color:var(--orange)}
   .lede{font-size:17px;margin:14px auto 18px;max-width:34ch;color:var(--white)}
   .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;list-style:none;margin:0;padding:0}
@@ -81,6 +75,8 @@
   /* QR on the confirmation ticket */
   .qr{display:flex;gap:18px;align-items:center;margin:2px 0 18px}
   .qr img{width:168px;height:168px;image-rendering:pixelated;border:2px solid var(--black);border-radius:10px;padding:6px;background:var(--white);flex:none}
+  .qr img.loading{background:repeating-linear-gradient(45deg,var(--page) 0 10px,var(--white) 10px 20px)} /* until the QR is drawn */
+  #debugpanel{position:fixed;right:8px;bottom:8px;z-index:50;margin:0;max-width:calc(100% - 16px);padding:8px 10px;border-radius:8px;background:var(--black);color:var(--white);font:12px/1.4 var(--font-mono);white-space:pre-wrap;opacity:.92}
   .qr p{margin:0;font-weight:700}
   .qr span{display:block;color:var(--muted);font-weight:500;font-size:15px;margin-top:4px}
   @media (max-width:420px){.qr{flex-direction:column;align-items:flex-start}}
@@ -108,9 +104,6 @@
     .hero{padding:16px 16px 92px}
     .logo{width:96px;margin-bottom:10px}
     .presenter{font-size:13px;margin-bottom:8px}
-    .frame{padding:16px 16px 14px}
-    .frame i{width:20px;height:20px;border-width:3px}
-    h1{font-size:clamp(30px,8.6vw,37px)}
     .sub{margin-top:8px;font-size:13px}
     .lede{font-size:14.5px;margin:10px auto}
     .chips li{font-size:13px;padding:4px 11px}
@@ -119,15 +112,13 @@
     .body{padding:18px 20px 22px}
   }
   @media (min-width:700px){main{max-width:760px}.steps{grid-template-columns:repeat(3,1fr)}.steps li{grid-template-columns:1fr;gap:10px}}
-  /* Laptops: a compact hero with a two-line headline, so the first form field is on the first screen at 1280 x 720. */
+  /* Laptops: a compact hero, so the first form field is on the first screen at 1280 x 720. */
   @media (min-width:900px){
     .hero{padding:14px 20px 70px}
     .logo{width:100px;margin-bottom:6px}
     .presenter{margin-bottom:4px;max-width:none}
-    .frame{padding:12px 22px 10px;max-width:560px}
-    h1{font-size:46px}
     .sub{margin-top:6px}
-    .lede{margin:6px auto 8px}
+    .lede{margin:6px auto 8px;max-width:none}
     main{margin-top:-58px}
     .stub{padding:18px 24px 18px}
     .meter{margin:10px 0 6px}
@@ -137,8 +128,6 @@
   .confirmed .lede,.confirmed .chips{display:none}
   .confirmed .hero{padding-bottom:84px}
   .confirmed .presenter{margin-bottom:2px}
-  .confirmed .frame{padding-top:12px;padding-bottom:10px}
-  .confirmed h1{font-size:clamp(26px,7.4vw,40px)}
   /* Groups with more than 20 seats get a bar instead of dots (up to 500 dots would push the form off the screen). */
   .seatbar{display:block;width:100%;height:16px;border:2px solid var(--on-dark);border-radius:999px;background:linear-gradient(90deg,var(--orange) var(--taken),transparent var(--taken))}
 
@@ -153,15 +142,11 @@
 </head>
 <body>
 <header class="hero">
-  <img class="hero-art" src="assets/hero-bg.svg" alt="" aria-hidden="true" fetchpriority="high" decoding="async"><div class="hero-shade" aria-hidden="true"></div>
   <div class="hero-inner">
     <img class="logo" src="assets/educata-logo-light.png" alt="educataGhana" width="132" height="45">
     <p class="presenter">Delegation of German Industry and Commerce in Ghana presents</p>
-    <div class="frame">
-      <i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>
-      <h1>Content Creator Contest</h1>
-      <p class="sub">educataGhana 2026</p>
-    </div>
+    <h1><img src="assets/banner-source.jpg" alt="Content Creators Contest" width="1000" height="400" fetchpriority="high" decoding="async"></h1>
+    <p class="sub">educataGhana 2026</p>
     <p class="lede">Evening Event Registration. Strictly by invitation.</p>
     <ul class="chips">
       <li>One seat per invited participant</li>
@@ -234,7 +219,7 @@
   <section id="done" class="hidden" aria-live="polite">
     <div class="ticket">
       <div class="stub">
-        <small>Admit one. Content Creator Contest</small>
+        <small>Admit one. Content Creators Contest</small>
         <p class="who" id="donewho"></p>
         <p class="ref" id="doneref"></p>
       </div>
@@ -270,7 +255,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, getDoc, onSnapshot, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, getDocFromServer, onSnapshot, runTransaction, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { parseCode, availability, tryRegister, validateForm, cryptoRand, scanUrl } from "./core.js";
 import { FIREBASE_CONFIG, EVENT_LINE, EMAIL_ENABLED, PUBLIC_BASE_URL } from "./config.js";
 
@@ -281,6 +266,21 @@ const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
 const code = parseCode(location.search);
 let inviteGid = null;
+let liveGroup = null;   // last group document confirmed by the server (from the live listener)
+let submitting = false; // while a registration is in flight the screen does not switch on snapshots
+
+// Debug timings: open the invite link with &debug=1. Labels and milliseconds since the page started, no personal data.
+const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
+const marks = [];
+function mark(label) {
+  if (!DEBUG) return;
+  const ms = Math.round(performance.now()), prev = marks.length ? marks[marks.length - 1].ms : 0;
+  marks.push({ label, ms });
+  console.log(`[timing] ${label}: ${ms} ms (+${ms - prev} ms)`);
+  let p = $("debugpanel");
+  if (!p) { p = document.createElement("pre"); p.id = "debugpanel"; p.className = "noprint"; p.setAttribute("aria-hidden", "true"); document.body.append(p); }
+  p.textContent = marks.map((m, i) => `${m.label}: ${m.ms} ms${i ? " (+" + (m.ms - marks[i - 1].ms) + ")" : ""}`).join("\n");
+}
 
 if (EVENT_LINE) { $("eventline").textContent = EVENT_LINE; $("eventline").classList.remove("hidden"); }
 
@@ -306,7 +306,13 @@ async function boot() {
     const inv = await getDoc(doc(db, "invites", code));
     if (!inv.exists()) return show("badcode");
     inviteGid = inv.data().gid;
+    mark("invite verified");
     onSnapshot(doc(db, "groups", inviteGid), (snap) => {
+      // The SDK first shows our own unconfirmed write (hasPendingWrites). Ignore it: taking the last seat must not flash "full".
+      if (snap.metadata && snap.metadata.hasPendingWrites) return;
+      if (snap.exists() && !liveGroup) mark("seat count loaded");
+      liveGroup = snap.exists() ? snap.data() : null;
+      if (submitting) return;
       if (!snap.exists()) return show("badcode");
       if (!$("done").classList.contains("hidden")) return; // keep showing the confirmation
       renderGroup(snap.data());
@@ -318,34 +324,56 @@ async function boot() {
   }
 }
 
+const fail = (code) => Object.assign(new Error(code), { code });
+// Careful path: a transaction reads the group on the server, then writes. Two round trips. Used only after the fast path was refused.
+async function commitTx(gRef, rRef, regId, regDoc) {
+  try {
+    await runTransaction(db, async (tx) => {
+      const g = (await tx.get(gRef)).data();
+      const a = availability(g);
+      if (a.state === "closed") throw fail("closed");
+      if (a.state === "full") throw fail("full");
+      tx.set(rRef, regDoc);
+      tx.update(gRef, { count: g.count + 1, lastReg: regId });
+    });
+  } catch (e) {
+    if (e && (e.code === "full" || e.code === "closed")) throw e;
+    if (e && (e.code === "unavailable" || e.code === "deadline-exceeded")) throw fail("network");
+    if (e && e.code === "permission-denied") {
+      // Rules rejected the write. Either the seats just ran out, or this email is already registered.
+      const a = availability((await getDocFromServer(gRef)).data());
+      if (a.state === "full" || a.state === "closed") throw fail(a.state);
+      throw fail("duplicate-or-denied");
+    }
+    throw e;
+  }
+}
+
 const adapter = {
   async getInvite(c) {
     const s = await getDoc(doc(db, "invites", c));
     return s.exists() ? { gid: s.data().gid } : null;
   },
-  async commit({ gid, regId, regDoc }) {
-    const gRef = doc(db, "groups", gid);
-    const rRef = doc(db, "registrations", regId);
-    try {
-      await runTransaction(db, async (tx) => {
-        const g = (await tx.get(gRef)).data();
-        const a = availability(g);
-        if (a.state === "closed") { const e = new Error("closed"); e.code = "closed"; throw e; }
-        if (a.state === "full")   { const e = new Error("full");   e.code = "full";   throw e; }
-        tx.set(rRef, regDoc);
-        tx.update(gRef, { count: g.count + 1, lastReg: regId });
-      });
-    } catch (e) {
-      if (e && (e.code === "full" || e.code === "closed")) throw e;
-      if (e && (e.code === "unavailable" || e.code === "deadline-exceeded")) { const n = new Error("network"); n.code = "network"; throw n; }
-      if (e && e.code === "permission-denied") {
-        // Rules rejected the write. Either the seats just ran out, or this email is already registered.
-        const g = (await getDoc(gRef)).data();
-        const a = availability(g);
-        if (a.state === "full" || a.state === "closed") { const n = new Error(a.state); n.code = a.state; throw n; }
-        const n = new Error("dup"); n.code = "duplicate-or-denied"; throw n;
-      }
-      throw e;
+  // Fast path: ONE batch (registration + count + 1 from the live snapshot), no reads first. The rules accept it only if the
+  // count is still current, the group is open and below cap, and the email is new. A batch is all or nothing.
+  async commit({ gid, regId, regDoc, group }) {
+    const gRef = doc(db, "groups", gid), rRef = doc(db, "registrations", regId);
+    if (!group) { mark("write sent"); await commitTx(gRef, rRef, regId, regDoc); mark("write acknowledged"); return; }
+    const a = availability(group);
+    if (a.state === "closed" || a.state === "full") throw fail(a.state);
+    const b = writeBatch(db);
+    b.set(rRef, regDoc);
+    b.update(gRef, { count: group.count + 1, lastReg: regId });
+    mark("write sent");
+    try { await b.commit(); mark("write acknowledged"); return; }
+    catch (e) {
+      if (!e || e.code !== "permission-denied") { if (e && (e.code === "unavailable" || e.code === "deadline-exceeded")) throw fail("network"); throw e; }
+      // Refused: ask the server what changed (the live snapshot may be behind).
+      const now = (await getDocFromServer(gRef)).data();
+      const na = availability(now);
+      if (na.state === "full" || na.state === "closed") throw fail(na.state);
+      if (now.count !== group.count) { mark("count was stale, retrying once"); await commitTx(gRef, rRef, regId, regDoc); mark("write acknowledged"); return; }
+      throw fail("duplicate-or-denied"); // count was current, group open: the email is already registered
     }
   },
 };
@@ -359,22 +387,28 @@ $("regform").addEventListener("submit", async (ev) => {
   const form = { name: $("name").value, email: $("email").value, phone: $("phone").value, org: $("org").value, consent: $("consent").checked };
   const v = validateForm(form);
   if (!v.ok) { for (const [k, m] of Object.entries(v.errors)) $("err-" + k).textContent = m; const first = Object.keys(v.errors)[0]; $(first).focus(); return; }
-  $("submit").disabled = true; $("submit").textContent = "Reserving...";
+  mark("submit tapped");
+  $("submit").disabled = true; $("submit").textContent = "Reserving..."; submitting = true;
+  // Offline, the write waits for the connection instead of failing. Say so rather than look frozen.
+  const slow = setTimeout(() => { $("submit").textContent = "Still connecting. Keep this page open..."; }, 8000);
   try {
-    const r = await tryRegister(adapter, { code, form, rand: cryptoRand, serverTime: serverTimestamp() });
+    const r = await tryRegister(adapter, { code, form, rand: cryptoRand, serverTime: serverTimestamp(), gid: inviteGid, group: liveGroup });
     if (r.ok) {
       $("donewho").textContent = r.name;
       $("doneemail").textContent = r.email;
       $("donetext").textContent = EMAIL_ENABLED
-        ? "A confirmation email is on its way. If it does not arrive within a few minutes, check spam."
+        ? "A confirmation email is on its way. Outlook and Hotmail can take several minutes. You do not need to wait: your QR code is on this page. Tap Save ticket image now."
         : "";
       $("donenote").textContent = EMAIL_ENABLED
         ? "Show the QR code, or this reference, at the door. Your confirmation email has the same QR code."
         : "Show the QR code, or this reference, at the door. No confirmation email is sent, so take a screenshot or print this page now.";
       $("doneref").textContent = r.ref;
       $("donegroup").textContent = $("groupname").textContent;
-      import("./qr.js").then((m) => { $("doneqr").src = m.qrDataUrl(scanUrl(PUBLIC_BASE_URL, location.href, r.ref)); document.querySelector(".qr").classList.remove("hidden"); }).catch(() => document.querySelector(".qr").classList.add("hidden"));
+      // Confirmation first; the QR follows a moment later (its module is preloaded, so usually at once).
+      $("doneqr").classList.add("loading"); document.querySelector(".qr").classList.remove("hidden");
+      $("doneqr").onload = () => { $("doneqr").classList.remove("loading"); mark("QR shown"); };
       show("done"); window.scrollTo(0, 0);
+      import("./qr.js").then((m) => { $("doneqr").src = m.qrDataUrl(scanUrl(PUBLIC_BASE_URL, location.href, r.ref)); }).catch(() => document.querySelector(".qr").classList.add("hidden"));
     } else if (r.reason === "full" || r.reason === "closed") {
       $("unavailable-title").textContent = r.reason === "full" ? "All seats for your group were just taken" : "Registration is closed for your group";
       $("unavailable-text").textContent = "Your details were not saved. Contact the Delegation of German Industry and Commerce in Ghana team who invited you.";
@@ -389,6 +423,7 @@ $("regform").addEventListener("submit", async (ev) => {
   } catch (e) {
     banner("Something went wrong and your seat was not reserved. Please try again in a moment.");
   } finally {
+    clearTimeout(slow); submitting = false;
     $("submit").disabled = false; $("submit").textContent = "Reserve my seat";
   }
 });

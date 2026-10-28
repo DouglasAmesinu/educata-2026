@@ -1,6 +1,8 @@
 // core.js - pure logic, no Firebase imports, so it can be unit tested in Node.
 
 export const EVENT_NAME = "Educata 2026";
+// The official event title. Every visible mention (pages, ticket image, email, docs) must match it: test/branding.test.mjs checks.
+export const EVENT_TITLE = "Content Creators Contest";
 
 // Seat plan. Cap = number of people allowed to register under that invite code.
 // Total must equal 258 (checked in tests).
@@ -109,16 +111,21 @@ export function buildRegistration({ code, gid, clean, ref, serverTime }) {
 //        create registration, increment count. Throws Error with .code in
 //        'full' | 'closed' | 'duplicate-or-denied' | 'network'
 // }
-export async function tryRegister(adapter, { code, form, rand, serverTime }) {
+// gid and group: the invite's group id and the live group document the page already has. With gid, the invite is not read
+// again (one round trip fewer); group is handed to adapter.commit for its fast path. Without them, the invite is read first.
+export async function tryRegister(adapter, { code, form, rand, serverTime, gid = null, group = null }) {
   const v = validateForm(form);
   if (!v.ok) return { ok: false, reason: "invalid", errors: v.errors };
-  const invite = await adapter.getInvite(code);
-  if (!invite) return { ok: false, reason: "bad-code" };
+  if (!gid) {
+    const invite = await adapter.getInvite(code);
+    if (!invite) return { ok: false, reason: "bad-code" };
+    gid = invite.gid;
+  }
   const ref = makeRef(rand);
-  const regDoc = buildRegistration({ code, gid: invite.gid, clean: v.clean, ref, serverTime });
+  const regDoc = buildRegistration({ code, gid, clean: v.clean, ref, serverTime });
   try {
-    await adapter.commit({ gid: invite.gid, regId: v.clean.email, regDoc });
-    return { ok: true, ref, name: v.clean.name, email: v.clean.email, gid: invite.gid };
+    await adapter.commit({ gid, regId: v.clean.email, regDoc, group });
+    return { ok: true, ref, name: v.clean.name, email: v.clean.email, gid };
   } catch (e) {
     if (e && (e.code === "full" || e.code === "closed" || e.code === "duplicate-or-denied" || e.code === "network")) {
       return { ok: false, reason: e.code };
@@ -163,6 +170,49 @@ export function parseRef(search) {
   if (!raw) return null;
   const r = raw.trim().toUpperCase();
   return REF_RE.test(r) ? r : null;
+}
+
+// Continuous scanner (scan.html without ?ref): what a decoded QR may be. Accepted: a bare reference, or a link on one of
+// our own hosts whose path ends in scan.html with a valid ref. Everything else returns null and is ignored silently.
+export function refFromScan(text, hosts) {
+  const s = String(text ?? "").trim();
+  if (REF_RE.test(s.toUpperCase())) return s.toUpperCase();
+  let u; try { u = new URL(s); } catch (e) { return null; }
+  if (!/^https?:$/.test(u.protocol) || !hosts.map((h) => String(h).toLowerCase()).includes(u.host.toLowerCase())) return null;
+  if (!/\/scan\.html$/.test(u.pathname)) return null;
+  return parseRef(u.search);
+}
+
+// Scan queue for the continuous scanner. A reference is ignored while it was seen less than dedupeMs ago (every sighting
+// restarts the window, so a ticket held in front of the camera is sent once). Accepted scans are saved (save/load, so a
+// reload keeps them) and sent one by one; a failed send stays first in line and is retried with a growing pause (1 s to 15 s).
+export const SCAN_DEDUPE_MS = 5000;
+export function createScanQueue({ send, load = () => [], save = () => {}, onChange = () => {}, now = () => Date.now(), schedule = (fn, ms) => setTimeout(fn, ms), dedupeMs = SCAN_DEDUPE_MS }) {
+  const items = (Array.isArray(load()) ? load() : []).filter((x) => x && REF_RE.test(x.ref));
+  const seen = new Map();
+  let busy = false, delay = 1000, timer = null;
+  function add(ref) {
+    const t = now(), last = seen.get(ref);
+    seen.set(ref, t);
+    if (last != null && t - last < dedupeMs) return false;
+    items.push({ ref, t }); save(items.slice());
+    onChange({ type: "queued", ref, t, pending: items.length });
+    flush();
+    return true;
+  }
+  async function flush() {
+    if (busy) return;
+    busy = true; if (timer) { clearTimeout(timer); timer = null; }
+    while (items.length) {
+      const it = items[0];
+      try { await send(it.ref); }
+      catch (error) { onChange({ type: "failed", ref: it.ref, t: it.t, error, pending: items.length }); timer = schedule(() => { timer = null; flush(); }, delay); delay = Math.min(delay * 2, 15000); break; }
+      items.shift(); save(items.slice()); delay = 1000;
+      onChange({ type: "sent", ref: it.ref, t: it.t, pending: items.length });
+    }
+    busy = false;
+  }
+  return { add, flush, pending: () => items.length };
 }
 
 // Door page manual box: accepts a reference or an email address.

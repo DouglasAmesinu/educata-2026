@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    // Door staff: may only drop scans into the relay queue. They cannot read any guest data.
+    function isStaff() {
+      return request.auth != null
+        && (isAdmin() || exists(/databases/$(database)/documents/staff/$(request.auth.uid)));
+    }
+    function groupPath(gid)  { return /databases/$(database)/documents/groups/$(gid); }
+    function invitePath(c)   { return /databases/$(database)/documents/invites/$(c); }
+    function regPath(id)     { return /databases/$(database)/documents/registrations/$(id); }
+
+    // Admin allow-list. Documents are created by hand in the Firebase console.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /staff/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Scan relay: a staff phone writes one tiny document per scanned QR; the gate laptop (admin) listens.
+    match /scans/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isStaff()
+        && request.resource.data.keys().hasOnly(['ref', 'at', 'by'])
+        && request.resource.data.ref is string
+        && request.resource.data.ref.matches('^EDU26-[A-Z0-9]{6}$')
+        && request.resource.data.at == request.time
+        && request.resource.data.by == request.auth.token.email;
+    }
+
+    // Invite code -> group. A guest can fetch ONE code they already know,
+    // but nobody can list codes. Only admins can create or change them.
+    match /invites/{code} {
+      allow get: if true;
+      allow list, write: if isAdmin();
+    }
+
+    // Public can read seat counts. Public can only bump the counter by exactly 1,
+    // and only when a matching new registration is created in the same commit.
+    match /groups/{gid} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || isRegistrationIncrement(gid);
+    }
+
+    function isRegistrationIncrement(gid) {
+      let before = resource.data;
+      let after = request.resource.data;
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['count', 'lastReg'])
+        && after.count == before.count + 1
+        && after.count <= before.cap
+        && before.open == true
+        && after.lastReg is string
+        && !exists(regPath(after.lastReg))
+        && existsAfter(regPath(after.lastReg))
+        && getAfter(regPath(after.lastReg)).data.gid == gid;
+    }
+
+    // Outgoing email queue. Written only by the server-side function (admin SDK
+    // bypasses rules). No client, including admins, may touch it.
+    match /mail/{id} { allow read, write: if false; }
+
+    // Registrations hold personal data: nobody but admins can read them.
+    // Public may only CREATE. No update or delete, so nobody can edit or remove
+    // someone else's seat even if they guess an email address.
+    match /registrations/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isAdmin() || validRegistration(id);
+    }
+
+    function validRegistration(id) {
+      let d = request.resource.data;
+      let g = d.gid;
+      return d.keys().hasOnly(['gid', 'code', 'name', 'email', 'phone', 'org', 'ref', 'createdAt'])
+        && d.keys().hasAll(['gid', 'code', 'name', 'email', 'org', 'ref', 'createdAt'])
+        && d.gid is string && d.gid.matches('^[a-z0-9-]{1,40}$')
+        && d.code is string && d.code.matches('^[A-Z0-9]{6,32}$')
+        && d.name is string && d.name.size() >= 2 && d.name.size() <= 100
+        && d.email is string && d.email.size() <= 200
+        && d.email.matches('^[^@\\s/]+@[^@\\s/]+\\.[^@\\s/]+$')
+        && id == d.email.lower()
+        && d.ref is string && d.ref.matches('^EDU26-[A-Z0-9]{6}$')
+        && d.createdAt == request.time
+        && (!('phone' in d) || (d.phone is string && d.phone.size() <= 30))
+        && d.org is string && d.org.size() >= 2 && d.org.size() <= 120
+        // the invite code must exist and belong to the group being registered into
+        && get(invitePath(d.code)).data.gid == g
+        // the group must be open, below cap, and bumped by exactly one in the SAME commit
+        && get(groupPath(g)).data.open == true
+        && getAfter(groupPath(g)).data.count == get(groupPath(g)).data.count + 1
+        && getAfter(groupPath(g)).data.count <= get(groupPath(g)).data.cap
+        && getAfter(groupPath(g)).data.lastReg == id;
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "educata-2026-registration",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/core.test.mjs test/compose.test.mjs test/email.test.mjs test/check-env.test.mjs test/design.test.mjs test/branding.test.mjs test/qr.test.mjs test/settings.test.mjs test/scanner.test.mjs",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-educata \"node --test test/rules.test.mjs\"",
+    "test:functions": "node --test test/function.test.mjs",
+    "test:browser": "node test/browser/run.mjs",
+    "preview:email": "node test/preview-email.mjs",
+    "build:email-banner": "node scripts/build-email-banner.mjs",
+    "check:env": "node scripts/check-env.mjs",
+    "test:all": "npm test && npm run test:functions && npm run test:browser"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.12.2",
+    "firebase-tools": "^13.0.0",
+    "jsqr": "^1.4.0",
+    "omggif": "^1.0.10",
+    "puppeteer-core": "^23.11.1",
+    "qrcode-generator": "^2.0.4"
+  }
+}
