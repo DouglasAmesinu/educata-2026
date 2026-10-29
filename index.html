@@ -26,18 +26,20 @@
   /* ---------- Hero: navy fading to black, the official banner artwork in a rounded frame ---------- */
   /* The navy matches the banner's own background, so its edge blends in. The h1 is navy too, so it paints before the
      image loads, and the img width and height attributes reserve its space, so nothing shifts.
-     On short laptop screens the banner is narrower (the 100vh term), so the Full name field and the QR code stay on the first screen. */
-  .hero{background:linear-gradient(180deg,var(--navy) 0%,var(--navy) 55%,var(--black) 100%) var(--navy);color:var(--white);padding:28px 20px 112px}
+     On short laptop screens the banner is narrower (the 100vh term), so the Full name field and the QR code stay on the first screen.
+     The hero's dark background and every hero text colour are plain hex values on purpose, not var(): if assets/brand.css is
+     missing or out of date, an unknown variable would drop the background and leave white text on the light grey page. */
+  .hero{background-color:#0A2232;background-image:linear-gradient(180deg,#0A2232 0%,#0A2232 55%,#000000 100%);color:#FFFFFF;padding:28px 20px 112px}
   .hero-inner{max-width:1000px;margin:0 auto;text-align:center}
-  .logo{display:block;width:132px;height:auto;margin:0 auto 18px}
-  .presenter{margin:0 auto 18px;max-width:34ch;font-weight:500;font-size:15.5px;color:var(--on-dark)}
-  h1{margin:0 auto;width:100%;max-width:min(1000px,max(300px,(100vh - 560px)*2.5));background:var(--navy);border-radius:16px;border-bottom:3px solid var(--orange);overflow:hidden;line-height:0}
+  .logo{display:block;width:132px;height:auto;margin:0 auto 18px;color:#FFFFFF}
+  .presenter{margin:0 auto 18px;max-width:34ch;font-weight:500;font-size:15.5px;color:#DBDBDB}
+  h1{margin:0 auto;width:100%;max-width:min(1000px,max(300px,(100vh - 560px)*2.5));background-color:#0A2232;color:#FFFFFF;border-radius:16px;border-bottom:3px solid #EC8223;overflow:hidden;line-height:0}
   h1 img{display:block;width:100%;height:auto}
-  .sub{margin:14px 0 0;font-weight:600;font-size:15px;letter-spacing:.06em;color:var(--orange)}
-  .lede{font-size:17px;margin:14px auto 18px;max-width:34ch;color:var(--white)}
+  .sub{margin:14px 0 0;font-weight:600;font-size:15px;letter-spacing:.06em;color:#EC8223}
+  .lede{font-size:17px;margin:14px auto 18px;max-width:34ch;color:#FFFFFF}
   .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;list-style:none;margin:0;padding:0}
-  .chips li{border:1.5px solid var(--muted);border-radius:999px;padding:5px 13px;font-size:14.5px;font-weight:500;color:var(--white)}
-  .chips li.hl{border-color:var(--orange);color:var(--orange)}
+  .chips li{border:1.5px solid #595959;border-radius:999px;padding:5px 13px;font-size:14.5px;font-weight:500;color:#FFFFFF}
+  .chips li.hl{border-color:#EC8223;color:#EC8223}
 
   @media (prefers-reduced-motion:no-preference){ .dot{transition:background .25s,border-color .25s} }
 
@@ -291,7 +293,7 @@ function renderGroup(g) {
   if (g.cap > 20) { const b = document.createElement("span"); b.className = "seatbar"; b.style.setProperty("--taken", Math.min(100, (100 * g.count) / g.cap) + "%"); m.appendChild(b); }
   else for (let i = 0; i < g.cap; i++) { const d = document.createElement("span"); d.className = "dot" + (i < g.count ? " taken" : ""); m.appendChild(d); }
   m.setAttribute("aria-label", `${g.count} of ${g.cap} seats taken`);
-  $("seatsline").textContent = a.state === "open" ? `${a.remaining} of ${g.cap} seats left for your group` : "";
+  $("seatsline").textContent = a.state === "open" ? `${a.remaining} of ${g.cap} ${a.remaining === 1 ? "seat" : "seats"} left for your group` : "";
   if (a.state === "full") { $("unavailable-title").textContent = "All seats for your group are taken"; $("unavailable-text").textContent = "Registration for this group is closed because every seat has been claimed. If you think this is a mistake, contact the Delegation of German Industry and Commerce in Ghana team who invited you."; show("unavailable"); }
   else if (a.state === "closed") { $("unavailable-title").textContent = "Registration is closed for your group"; $("unavailable-text").textContent = "Contact the Delegation of German Industry and Commerce in Ghana team who invited you if you need a seat."; show("unavailable"); }
   else if (!$("done").classList.contains("hidden")) { /* stay on confirmation */ }
