@@ -83,6 +83,8 @@ export function validateForm(f) {
   const org = String(f.org ?? "").trim();
   if (name.length < 2 || name.length > 100) errors.name = "Enter your full name (2 to 100 characters).";
   if (email.length > 200 || !EMAIL_RE.test(email)) errors.email = "Enter a valid email address.";
+  if (!phone) errors.phone = "Phone number is required.";
+else if (phone.length > 30) errors.phone = "Phone number is too long.";
   if (phone.length > 30) errors.phone = "Phone number is too long.";
   if (org.length < 2 || org.length > 120) errors.org = "Enter your organisation (2 to 120 characters).";
   if (!f.consent) errors.consent = "Please confirm that we may use your details for this event.";
