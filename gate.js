@@ -1,9 +1,12 @@
 // Gate panel for door.html (the gate laptop). The ONLY place where participants are checked in.
 // One live listener on registrations feeds the participant list, the search and the "In: x / y" counter.
-// A second listener on scans shows a card when a phone scans a QR code.
-import { getDocs, collection, query, where, orderBy, limit, onSnapshot, runTransaction, serverTimestamp, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// A second listener on scans shows a card when a phone scans a QR code (phones send through the relay function).
+// A third listener on devices feeds the "Scanning phones" panel: add a phone with a one-time code, list, revoke.
+import { getDocs, collection, query, where, orderBy, limit, onSnapshot, runTransaction, serverTimestamp, doc, setDoc, updateDoc, writeBatch, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const DONE_MS = 3000; // how long "Checked in. Welcome." stays before the card clears itself
+const RECENT_MS = 20e3, NOTE_MS = 5000; // a repeat scan this soon after check-in is the same person: grey notice for 5 s, not the red card
+const CODE_MS = 5 * 60e3; // an enrolment code works for 5 minutes (the relay function enforces it from the server time)
 
 const CSS = `
 .gate{font-family:var(--font-body,system-ui,sans-serif);color:var(--text,#2A2A2A)}
@@ -43,6 +46,13 @@ const CSS = `
 .gate .badge{background:var(--ok,#1F7A4D);color:var(--white,#fff);border-radius:10px;padding:6px 14px;font-weight:800;font-size:20px}
 .gate .more{margin:0 0 8px;color:var(--muted,#595959);font-size:18px;font-weight:600}.gate .more:empty{display:none}
 .gate .ghidden{display:none!important}
+.gate .gstatus.recent{background:#E6E6E6;color:#000000;border-left:12px solid #595959}
+.gate .gstatus.undone{background:var(--white,#fff);color:var(--black,#000);border:3px solid var(--black,#000);border-left:12px solid var(--muted,#595959)}
+.gate button.undo{margin:4px 0 0 12px;font-size:20px;min-height:56px;padding:12px 24px}
+.gate .gcode{font:800 64px/1 var(--font-mono,monospace);letter-spacing:.15em;color:var(--black,#000);margin:14px 0 6px}
+.gate .devs{margin:12px 0}
+.gate .dev{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--grey-300,#DBDBDB)}
+.gate .dev .rname{overflow-wrap:anywhere}
 /* Narrow screens (phones, tablets): a name never breaks inside a word; its size follows its length (see fitName). */
 @media (max-width:820px){
 .gate .gname{overflow-wrap:normal}
@@ -62,7 +72,14 @@ const HTML = `
 <div class="gpanel" id="listpanel"><p style="margin-top:0"><b>Participants <span id="listnote">(loading)</span></b></p>
   <input type="search" id="search" placeholder="Search name, organisation, email or reference" autocapitalize="off" autocomplete="off">
   <p class="more" id="listmore"></p>
-  <div class="matches" id="list"></div></div>`;
+  <div class="matches" id="list"></div></div>
+<div class="gpanel" id="phones"><p style="margin-top:0"><b>Scanning phones <span id="phonenote"></span></b></p>
+  <p class="rmeta" id="phonehelp"></p>
+  <button id="addphone">Add scanning phone</button>
+  <div id="codebox" class="ghidden"><p class="gcode" id="enrollcode"></p><p class="rmeta" id="codetime"></p></div>
+  <p class="gerr" id="phoneerr"></p>
+  <div class="devs" id="devices"></div>
+  <button id="revokeall" class="ghidden">Revoke all phones</button></div>`;
 
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
 const LIST_MAX = 50; // the list draws at most this many matching rows; the search still finds everyone
@@ -75,6 +92,11 @@ function fitName(p, first) {
   while (px > 24 && p.scrollWidth > p.clientWidth + 1) { px -= 2; p.style.fontSize = px + "px"; }
   if (p.scrollWidth > p.clientWidth + 1) p.classList.add("anywhere");
 }
+const toDate = (ts) => (ts && ts.toDate ? ts.toDate() : ts instanceof Date ? ts : null);
+const ago = (d) => { if (!d) return "never"; const s = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000)); return s < 60 ? "just now" : s < 3600 ? Math.floor(s / 60) + " min ago" : Math.floor(s / 3600) + " h ago"; };
+// A 6-digit code from crypto.getRandomValues, without modulo bias; stored only as its SHA-256 hash.
+function sixDigits() { const a = new Uint32Array(1), lim = Math.floor(2 ** 32 / 1e6) * 1e6; do crypto.getRandomValues(a); while (a[0] >= lim); return String(a[0] % 1e6).padStart(6, "0"); }
+const sha256hex = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((b) => b.toString(16).padStart(2, "0")).join("");
 const fmt = (ts) => { const d = ts && ts.toDate ? ts.toDate() : ts instanceof Date ? ts : null; return d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "earlier"; };
 
 export function mountGate(root, { db, user, bar = null }) {
@@ -97,7 +119,18 @@ export function mountGate(root, { db, user, bar = null }) {
     render();
   }
   const drop = (e) => { entries = entries.filter((x) => x !== e); render(); };
-  const show = (r, fromScan) => addEntry({ ref: r.ref, id: r.id, reg: r, state: r.checkedIn ? "dup" : "new" }, fromScan);
+  function show(r, fromScan) {
+    // The same reference again (several phones, or one phone twice): refresh the open card, no second beep.
+    const open = entries.find((x) => x.ref === r.ref && (x.state === "new" || x.state === "undone"));
+    if (open && !r.checkedIn) { if (!open.busy) open.reg = r; return render(); }
+    // Checked in moments ago (no time yet means the save is still on its way): calm grey notice, gone after 5 seconds.
+    const at = toDate(r.checkedInAt);
+    if (r.checkedIn && (!at || Date.now() - at.getTime() < RECENT_MS)) {
+      const e = { ref: r.ref, id: r.id, reg: r, state: "recent" };
+      addEntry(e, fromScan); setTimeout(() => drop(e), NOTE_MS); return;
+    }
+    addEntry({ ref: r.ref, id: r.id, reg: r, state: r.checkedIn ? "dup" : "new" }, fromScan);
+  }
 
   async function lookup(ref, fromScan) {
     let r = regs && regs.find((x) => x.ref === ref);
@@ -118,14 +151,15 @@ export function mountGate(root, { db, user, bar = null }) {
       else {
         card.append(el("p", e.reg.name, "gname"), el("p", e.reg.org || "", "gsub"));
         const st = el("div", null, "gstatus " + e.state);
-        st.textContent = e.state === "done" ? "Checked in. Welcome." : e.state === "dup" ? "ALREADY CHECKED IN at " + fmt(e.reg.checkedInAt) + ". Check ID before admitting again." : "Not checked in yet. Compare the name with the participant.";
+        st.textContent = e.state === "done" ? "Checked in. Welcome." : e.state === "recent" ? "Just checked in at " + (toDate(e.reg.checkedInAt) || new Date()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }) : e.state === "dup" ? "ALREADY CHECKED IN at " + fmt(e.reg.checkedInAt) + ". Check ID before admitting again." : e.state === "undone" ? "Check-in undone. Not checked in." : "Not checked in yet. Compare the name with the participant.";
         card.append(st);
         const dl = el("dl");
         [["Group", gname(e.reg.gid)], ["Email", e.reg.email], ["Phone", e.reg.phone || "none"], ["Reference", e.reg.ref]].forEach(([k, v]) => dl.append(el("dt", k), el("dd", v, k === "Reference" ? "mono" : null)));
         card.append(dl);
-        if (e.state === "new" && !e.busy) { const b = el("button", "Check in", "bigbtn"); b.onclick = () => checkIn(e); card.append(b); }
+        if ((e.state === "new" || e.state === "undone") && !e.busy) { const b = el("button", "Check in", "bigbtn"); b.onclick = () => checkIn(e); card.append(b); }
         if (e.error) card.append(el("p", e.error, "gerr"));
-        if (e.state === "dup") { const d = el("button", "Dismiss", "dismiss"); d.onclick = () => drop(e); card.append(d); }
+        if (e.state === "dup" || e.state === "undone") { const d = el("button", "Dismiss", "dismiss"); d.onclick = () => drop(e); card.append(d); }
+        if (e.state === "dup" && !e.busy) { const u = el("button", "Undo check-in", "undo"); u.onclick = () => undo(e); card.append(u); }
       }
       box.append(card);
       if (e.state !== "missing") fitName(card.querySelector(".gname"), i === 0);
@@ -144,6 +178,22 @@ export function mountGate(root, { db, user, bar = null }) {
       e.reg = out.data; e.busy = false; e.state = out.already ? "dup" : "done"; render();
       if (!out.already) setTimeout(() => drop(e), DONE_MS);
     } catch (err) { e.busy = false; e.error = "Check-in failed: " + (err.code || err.message) + ". Try again."; render(); }
+  }
+
+  // Undo a check-in (a mistaken click, or the wrong person admitted): asks first, then one transaction.
+  async function undo(e) {
+    if (!window.confirm(`Undo check-in for ${e.reg.name}?`)) return;
+    e.busy = true; e.error = ""; render();
+    try {
+      const out = await runTransaction(db, async (tx) => {
+        const r = doc(db, "registrations", e.id); const cur = (await tx.get(r)).data();
+        if (!cur.checkedIn) return { data: cur };
+        tx.update(r, { checkedIn: false, checkedInAt: deleteField(), undoneBy: user.email, undoneAt: serverTimestamp() });
+        const { checkedInAt, ...rest } = cur;
+        return { data: { ...rest, checkedIn: false, undoneBy: user.email, undoneAt: new Date() } };
+      });
+      e.reg = out.data; e.busy = false; e.state = "undone"; render();
+    } catch (err) { e.busy = false; e.error = "Undo failed: " + (err.code || err.message) + ". Try again."; render(); }
   }
 
   function renderList() {
@@ -172,12 +222,72 @@ export function mountGate(root, { db, user, bar = null }) {
     regs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     $("count").textContent = `In: ${regs.filter((r) => r.checkedIn).length} / ${regs.length}`;
     renderList();
+    let changed = false;
+    for (const e of entries) {
+      const r = e.id && !e.busy && e.state !== "done" && e.state !== "recent" && regs.find((x) => x.id === e.id);
+      if (!r) continue;
+      const next = r.checkedIn ? "dup" : e.state === "dup" ? "undone" : e.state;
+      if (next !== e.state || r.checkedIn !== e.reg.checkedIn) { e.reg = r; e.state = next; changed = true; }
+    }
+    if (changed) render();
   }, (e) => { $("listnote").textContent = "(list error: " + (e.code || e.message) + ")"; });
   // First snapshot is the backlog of old scans: ignored so a page restart never replays them.
   onSnapshot(query(collection(db, "scans"), orderBy("at", "desc"), limit(20)), (snap) => {
     if (!primed) { primed = true; return; }
     snap.docChanges().forEach((ch) => { if (ch.type === "added") { const d = ch.doc.data(); if (d && d.ref) lookup(d.ref, true); } });
   }, (e) => { $("wait").textContent = "Scan relay error: " + (e.code || e.message); });
+
+  // ---- Scanning phones: enrol with a one-time code, list live, revoke ----
+  let devs = [], code = null, codeTimer = null;
+  $("phonehelp").textContent = `Staff phones scan participants' QR codes with the Camera app, no sign-in. To add a phone: on the phone, open ${new URL("scan.html", location.href).href} in the browser that the Camera app opens links in, press Add scanning phone here, and type the code on the phone within 5 minutes.`;
+  function showCode() {
+    const left = code ? code.exp - Date.now() : 0;
+    if (code && code.added) { $("enrollcode").textContent = ""; $("codetime").textContent = "Phone added: " + code.added + ". Press Add scanning phone for the next one."; }
+    else if (left > 0) { $("enrollcode").textContent = code.code; $("codetime").textContent = `Type this code on the phone. It works once, for ${Math.floor(left / 60e3)}:${String(Math.floor((left % 60e3) / 1000)).padStart(2, "0")} more.`; }
+    else { $("enrollcode").textContent = ""; $("codetime").textContent = "Code expired. Press Add scanning phone for a new one."; }
+    if (!code || code.added || left <= 0) { clearInterval(codeTimer); codeTimer = null; }
+  }
+  $("addphone").onclick = async () => {
+    $("phoneerr").textContent = ""; $("addphone").disabled = true;
+    try {
+      for (let i = 0; ; i++) { // a code that collides with an existing one is refused by the rules: try another
+        const c = sixDigits(), exp = Date.now() + CODE_MS;
+        try { await setDoc(doc(db, "enrollCodes", await sha256hex(c)), { createdAt: serverTimestamp(), expiresAt: new Date(exp), used: false }); code = { code: c, exp, known: new Set(devs.map((d) => d.id)) }; break; }
+        catch (err) { if (i >= 2) throw err; }
+      }
+      $("codebox").classList.remove("ghidden"); clearInterval(codeTimer); codeTimer = setInterval(showCode, 1000); showCode();
+    } catch (err) { $("phoneerr").textContent = "Could not create a code: " + (err.code || err.message); }
+    finally { $("addphone").disabled = false; }
+  };
+  const revoke = (id) => updateDoc(doc(db, "devices", id), { revoked: true }).catch((err) => { $("phoneerr").textContent = "Revoke failed: " + (err.code || err.message); });
+  $("revokeall").onclick = async () => {
+    const live = devs.filter((d) => !d.revoked);
+    if (!live.length || !window.confirm(`Revoke all ${live.length} phones? Each will need a new code.`)) return;
+    const b = writeBatch(db); live.forEach((d) => b.update(doc(db, "devices", d.id), { revoked: true }));
+    try { await b.commit(); } catch (err) { $("phoneerr").textContent = "Revoke failed: " + (err.code || err.message); }
+  };
+  function renderDevices() {
+    const live = devs.filter((d) => !d.revoked).sort((a, b) => (a.label || "").localeCompare(b.label || ""));
+    const active = live.filter((d) => (toDate(d.expiresAt) || 0) > Date.now()).length;
+    $("phonenote").textContent = `(${active} active)`;
+    const box = $("devices"); box.replaceChildren();
+    for (const d of live) {
+      const exp = toDate(d.expiresAt), row = el("div", null, "dev"), who = el("span");
+      const until = exp ? (exp > Date.now() ? "expires " + exp.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "expired") : "";
+      who.append(el("b", d.label || "(no name)", "rname"), el("br"), el("span", `last seen ${ago(toDate(d.lastSeen))}, ${until}`, "rmeta"));
+      const b = el("button", "Revoke"); b.onclick = () => revoke(d.id);
+      row.append(who, b); box.append(row);
+    }
+    if (!live.length) box.append(el("p", "No phones set up yet.", "rmeta"));
+    $("revokeall").classList.toggle("ghidden", !live.length);
+  }
+  onSnapshot(collection(db, "devices"), (snap) => {
+    devs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const fresh = code && !code.added && devs.find((d) => !code.known.has(d.id));
+    if (fresh) { code.added = fresh.label || "(no name)"; showCode(); }
+    renderDevices();
+  }, (err) => { $("phoneerr").textContent = "Phone list error: " + (err.code || err.message); });
+  setInterval(renderDevices, 30e3); // keeps "last seen" fresh
 
   return { lookup };
 }

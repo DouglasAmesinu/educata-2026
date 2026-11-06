@@ -202,7 +202,7 @@
           <input type="email" id="email" name="email" autocomplete="email" maxlength="200" required inputmode="email">
           <div class="err" id="err-email"></div>
 
-          <label for="phone">Phone <small>(optional)</small></label>
+          <label for="phone">Phone <small>(required)</small></label>
           <input type="tel" id="phone" name="phone" autocomplete="tel" maxlength="30">
           <div class="err" id="err-phone"></div>
 
@@ -399,7 +399,7 @@ $("regform").addEventListener("submit", async (ev) => {
       $("donewho").textContent = r.name;
       $("doneemail").textContent = r.email;
       $("donetext").textContent = EMAIL_ENABLED
-        ? "A confirmation email is on its way. Outlook and Hotmail can take several minutes. You do not need to wait: your QR code is on this page. Tap Save ticket image now."
+        ? "A confirmation email is on its way. It usually arrives within a couple of minutes, and can land in Spam or Junk. Your QR code is already on this page: tap Save ticket image now."
         : "";
       $("donenote").textContent = EMAIL_ENABLED
         ? "Show the QR code, or this reference, at the door. Your confirmation email has the same QR code."

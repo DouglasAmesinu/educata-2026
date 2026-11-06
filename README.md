@@ -7,7 +7,7 @@ What you are building: a private registration website. Each group gets its own s
 What you need before you start: a Google account (Firebase), a GitHub account, and a Cloudflare login for gabsconnect.com. Total time: about 2 to 3 hours.
 
 Files in this folder, and which ones you upload to GitHub:
-- Upload to GitHub: every `.html` and `.js` file in the top folder: `index.html`, `admin.html`, `door.html`, `scan.html`, `core.js`, `qr.js`, `qrcode-lib.js`, `gate.js`, `ticket.js`, `config.js`, `jsqr.js` (eleven files), plus the whole `assets` folder with its `fonts` subfolder (`assets/brand.css`, `assets/banner-source.jpg`, `assets/educata-logo-light.png`, `assets/hero-bg.svg`, `assets/fonts/montserrat-latin-var.woff2`, `assets/fonts/OFL-Montserrat.txt`; `hero-bg.svg` is only used to build the email banner, uploading it does no harm). If an older `assets/educata-logo.png` is in the repository, you may delete it: nothing uses it any more. Always all from the same version. In the GitHub website, open the repository, click **Add file > Upload files**, and drag the `assets` folder itself (not its contents) from File Explorer into the page, so the folder structure is kept. Then check that `assets/fonts/` exists in the repository.
+- Upload to GitHub: every `.html` and `.js` file in the top folder: `index.html`, `admin.html`, `door.html`, `scan.html`, `core.js`, `qr.js`, `qrcode-lib.js`, `gate.js`, `ticket.js`, `config.js`, `jsqr.js` (eleven files), plus the whole `assets` folder with its `fonts` subfolder (`assets/brand.css`, `assets/banner-source.jpg`, `assets/educata-logo-light.png`, `assets/fonts/montserrat-latin-var.woff2`, `assets/fonts/OFL-Montserrat.txt`). If an older `assets/hero-bg.svg` is in the repository, you may delete it: nothing uses it any more. If an older `assets/educata-logo.png` is in the repository, you may delete it: nothing uses it any more. Always all from the same version. In the GitHub website, open the repository, click **Add file > Upload files**, and drag the `assets` folder itself (not its contents) from File Explorer into the page, so the folder structure is kept. Then check that `assets/fonts/` exists in the repository.
 - Do not upload: `test`, `functions`, `node_modules`, `firestore.rules`, `README.md`, `package.json`, `firebase.json`. `firestore.rules` is pasted into Firebase instead (Phase 1).
 
 ---
@@ -65,13 +65,15 @@ export const FIREBASE_CONFIG = {
 export const EVENT_LINE = "";
 export const EMAIL_ENABLED = false;
 export const PUBLIC_BASE_URL = "";
+export const RELAY_URL = "";
+export const ENROLL_URL = "";
 ```
 
-2. Keep the quotes. Keep the commas. Leave the last three lines exactly as shown for now.
+2. Keep the quotes. Keep the commas. Leave the last five lines exactly as shown for now. RELAY_URL and ENROLL_URL are filled in Part 10, after the scan relay is deployed. Until then the scan page says "Scanner not configured".
 3. Optional: put your date and venue between the quotes of EVENT_LINE, for example `Thursday 12 November, 6:30 PM, Venue, Accra`.
 4. Save.
 
-CHECK: the file has exactly four `export const` names: FIREBASE_CONFIG, EVENT_LINE, EMAIL_ENABLED, PUBLIC_BASE_URL, each once.
+CHECK: the file has exactly six `export const` names: FIREBASE_CONFIG, EVENT_LINE, EMAIL_ENABLED, PUBLIC_BASE_URL, RELAY_URL, ENROLL_URL, each once. (`npm test` checks this.)
 
 ---
 
@@ -111,7 +113,7 @@ Do all of these. They are the proof that the seat limit works.
 5. Open a real invite link on your phone using mobile data.
 6. In admin, click **Download CSV** and open it in Excel.
 
-7. **QR, phone and gate laptop.** You need two devices and one staff account (Phase 8 step 4 shows how to create it). Register a test guest and keep the confirmation page open (it shows the QR). On the laptop open `https://educata.gabsconnect.com/door.html` and sign in with an admin account: it says "Waiting for scans". On a phone, sign in once at any scan link (or scan the QR with the Camera app and sign in when asked). Scan the QR on the other screen. The phone says "Sent to the gate laptop" and, within a second or two, the laptop shows the guest's name and a green **Check in** button. Click it and expect "Checked in. Welcome." and the counter to move. Scan the same QR again and expect a red "ALREADY CHECKED IN" warning. The admin page (open in another window) shows "Checked in" with the time on that row without a refresh. Check-in is only possible on door.html. Then remove the test guest in the admin page.
+7. **QR, phone and gate laptop.** This needs the scan relay (Part 10) and two devices. Register a test participant and keep the confirmation page open (it shows the QR). On the laptop open `https://educata.gabsconnect.com/door.html` and sign in with an admin account: it says "Waiting for scans". Set up one phone as in Phase 8 step 4. Scan the QR on the other screen with the phone's Camera app and tap the link. The phone turns green: "Sent to the gate laptop". Within a second or two the laptop shows the participant's name and a green **Check in** button. Click it and expect "Checked in. Welcome." and the counter to move. Scan the same QR again: the phone turns red ("ALREADY CHECKED IN at HH:MM") and the laptop shows a red card with **Undo check-in**. Try Undo, then check in again. The admin page (open in another window) shows "Checked in" with the time on that row without a refresh. Check-in and Undo are only possible on door.html. Then remove the test participant in the admin page.
 
 CHECK: all seven behave as written. If any does not, stop and tell me which.
 
@@ -168,19 +170,37 @@ These tests have never been run by the author. They are written but unexecuted.
 2. Watch **Registrations** on the admin page. If a link leaks, click **Close** on that group or **Remove** strangers.
 3. **How the gate works.** Every guest has a QR code on their confirmation page and in their confirmation email, with the reference printed under it. At the event:
    - A **gate laptop** stays open on `https://educata.gabsconnect.com/door.html`, signed in with an admin account. It shows "Waiting for scans".
-   - **Staff phones, continuous scanner (recommended for a queue).** On each staff phone open `https://educata.gabsconnect.com/scan.html` (no `?ref=` at the end) in Chrome (Android) or Safari (iPhone), sign in once, and tap **Allow** when the browser asks for the camera. The page shows a live camera view. Point it at one QR after another; there is nothing to tap between guests. Each good scan vibrates the phone and shows a big green box with the reference and **Sent**; the last 5 scans are listed with their times. The same ticket is ignored while it stays in front of the camera and for 5 seconds after, so holding it there does not send it twice. QR codes that are not our tickets are ignored without a message. Use **Torch on** in dim light (Android only; iPhones do not offer it to web pages). The screen is kept awake while the page is open, on phones that support it.
-   - **No signal:** scans are not lost. The phone shows "No connection. Scans are kept and sent automatically." and **Pending (n)**, keeps them even if the page is reloaded, and sends them in order as soon as the connection is back. Do not close the browser tab until Pending has gone. Scans sent late still reach the laptop, a little later.
-   - **Camera problems:** "Camera permission denied" means the camera was blocked: Android Chrome: tap the icon left of the address > **Permissions > Camera > Allow**, then reload. iPhone: **Settings > Safari > Camera > Allow** (or **Ask**), then reload. "No camera found" or "The camera is busy in another app": close other camera apps and reload.
-   - **Staff phones, one scan at a time (also works).** Point the normal Camera app at the guest's QR and tap the link. The page `scan.html` opens and says "Sent to the gate laptop". The phone shows no guest details.
+   - **Staff phones.** Each staff phone is set up once with a code from the gate laptop (step 4). After that, staff point the phone's normal **Camera app** at a participant's QR and tap the link. There is no sign-in on the phone and the phone never shows any participant's name or details, only the reference.
+     - **Green "Sent to the gate laptop"** with the reference: the laptop has it. Next participant.
+     - **Red "ALREADY CHECKED IN at HH:MM"** with "Check ID. The gate screen has this participant.": this QR was already used to enter at that time (Accra time). Stop the person, look at the laptop (it shows the name in a red card) and check their ID. It could be a forwarded or screenshotted ticket, or the same person scanned twice by mistake.
+     - "This QR code is not recognised. Ask the participant for their reference.": not one of our tickets, or a broken code. Search the reference or name on the laptop.
+     - Hold the QR in front of the camera until the phone shows **Sent**, then move it away. If the phone says "Scanned too quickly. Wait a moment.", the gate already has it: the same QR was sent within 3 seconds. Nothing to do.
+     - "Not sent. Check your connection and scan again.": the phone tried 6 times over about 15 seconds without a connection. Scan again when the signal is back. Nothing is queued: a scan that says Not sent did not reach the laptop.
+     - "This phone is no longer set up. Ask the gate lead for a new code.": the phone was revoked or its setup expired (48 hours by default). Set it up again (step 4).
+     - "This QR code is for gate staff. Show it at the gate.": shown when a participant scans their own QR on a phone that is not set up. Nothing is sent.
    - The laptop instantly shows the guest's name, organisation, group and status. The operator compares the name with the person or their ID and clicks **Check in**. The button disappears at once, the card shows "Checked in. Welcome." for about 3 seconds, then clears itself for the next scan. If the save fails, the button comes back with the error: click it again. The check-in, the time and the operator's email are saved.
    - Only door.html can check people in. The admin page shows check-in status as read-only text and updates live.
-   - A second scan of the same QR shows a red "ALREADY CHECKED IN at HH:MM" warning that stays until you click **Dismiss**, so a forwarded or screenshotted QR cannot get a second person in unnoticed.
+   - If the same QR arrives again while its card is still open and not checked in (for example two phones scanned it), the laptop only refreshes that card, with no second beep.
+   - If it arrives within 20 seconds of that participant's check-in, the laptop shows a calm grey "Just checked in at HH:MM:SS" for 5 seconds. That is the same person scanned twice; nothing to do.
+   - A scan more than 20 seconds after check-in shows a red "ALREADY CHECKED IN at HH:MM" warning that stays until you click **Dismiss**, so a forwarded or screenshotted QR cannot get a second person in unnoticed.
+   - **Undo check-in** (on that red card, door.html only): use it only when a check-in was a mistake, for example **Check in** was clicked on the wrong card, or the person checked in earlier turns out not to be this participant and must be turned away, so the real participant can enter. It asks "Undo check-in for <name>?". **OK** sets the participant back to not checked in and saves who undid it and when; the card says "Check-in undone. Not checked in." and the **Check in** button returns. **Cancel** changes nothing. Every gate laptop sees the change at once and the counter goes down by one. Do not use Undo for a participant who simply left the venue.
    - The counter on the laptop ("In: 12 / 40") shows how many have arrived. Tick "Sound on new scan" for a beep.
    - Below the cards, the laptop lists every participant (name, organisation, group, and an "In" badge once checked in), sorted by name. No email or phone is shown in the list. If the screen faces guests, click **Hide list**.
-4. **Phone staff accounts (do this the day before).** Each scanning phone needs a staff login. Create it in Firebase **Authentication > Users > Add user** (one per person is best), copy its User UID, then **Firestore Database > Data > Start collection** (first time) with Collection ID `staff`, Document ID the UID, field `ok` boolean `true`. A staff account can only send scans. It cannot read any guest data. On each phone, open any `scan.html` link, sign in once and stay signed in. Test it the day before. Check the bottom of the scan page: it must say **Sign-in saved on this phone: yes**. If it says no, or shows "Open this link in Chrome or Safari so your sign-in is remembered.", the camera opened the link inside another app (often the Google app on Android, or Facebook, Instagram or WhatsApp), which forgets the sign-in. Fix it on that phone: use the normal Camera app, or in Google Lens tap the link and choose **Open in Chrome**, or set Chrome (Android) or Safari (iPhone) as the default browser. If the page says "This account is not allowed to send scans", the account is signed in but missing from the `staff` collection: add its UID there. The page never signs anyone out by itself; only the **Sign out** button does.
+4. **Scanning phones (do this the day before, then test).** Phones are set up with a one-time code from the gate laptop. No staff account is needed. For each of the (for example) 5 phones, one at a time:
+   1. On the gate laptop, open `https://educata.gabsconnect.com/door.html` and sign in with an admin account. Scroll to **Scanning phones**.
+   2. On the phone, open `https://educata.gabsconnect.com/scan.html` **in the browser that the phone's Camera app opens links in**. iPhone: that is Safari (unless you changed the default browser). Android: usually Chrome. If the page shows "Open this link in Chrome or Safari so this phone stays set up.", you are in an in-app browser (Google app, Facebook, Instagram, WhatsApp, Line): copy the address into Chrome or Safari instead.
+   3. The phone shows **Set up this phone**. On the laptop press **Add scanning phone**. A large 6-digit code appears with a countdown. It works once, for 5 minutes.
+   4. On the phone type the code and a name for the phone (for example **Gate 1**, then Gate 2 and so on, so you can tell them apart), and tap **Set up this phone**. The phone turns green: **Phone ready**, and the bottom says "This phone: Gate 1". The laptop says "Phone added: Gate 1" and lists the phone with "last seen" and when its setup expires.
+   5. Prove the Camera app uses the same browser: scan your test ticket's QR with the Camera app and tap the link. It must say **Sent to the gate laptop** (or the red ALREADY CHECKED IN). If it says "This QR code is for gate staff", the Camera opened a different browser that is not set up: on Android in Google Lens tap the link and choose **Open in Chrome**, or set Chrome (Android) or Safari (iPhone) as the default browser, then set the phone up again in that browser.
+   6. Repeat for the next phone with a new code (press **Add scanning phone** again).
+   - At most 10 phones can be set up at once (`MAX_DEVICES` in `functions/.env`, from 1 to 30). The 11th gets "This event already has 10 active scanning phones, the limit. Revoke one on the gate laptop first."
+   - A setup lasts 48 hours (`DEVICE_TTL_HOURS`), so phones set up the day before still work on the night. Set up again after that.
+   - Typing wrong codes: 5 tries a minute per phone; after 10 wrong codes in total, setting up phones pauses for 10 minutes for everyone. Another reason to do this the day before.
+   - **Lost or stolen phone, or a staff member leaves:** on the laptop click **Revoke** next to that phone. It stops working on its next scan. **Revoke all phones** asks first, then stops every phone; each then needs a new code.
+   - Private browsing on iPhone or a browser that blocks storage cannot keep the setup; the page says "This browser cannot keep the setup." Use a normal tab.
 5. **Gate laptop account.** The laptop must use an account in the `admins` collection (Phase 1 step 8). Admins can see all guest details, so keep the admin list to two or three trusted people.
 6. **No QR code or dead phone:** on the gate laptop type part of the name, organisation, email or reference in the search box above the list, then click the participant to open their card and **Check in**. The list draws at most 50 names at a time ("Showing 50 of 301. Keep typing to narrow the list."), so type a few letters rather than scrolling.
-7. **Bad signal at the gate:** phones need internet. The continuous scanner keeps unsent scans as **Pending (n)** and sends them when the signal returns; with the one-scan page, rescan when it says "Not sent". The laptop needs internet too. Have a hotspot ready.
+7. **Bad signal at the gate:** phones need internet. A phone retries for about 15 seconds, then says "Not sent": scan again once the signal is back, or search the participant on the laptop. The laptop needs internet too. Have a hotspot ready.
 
 Keep in mind: a link is a shared secret. Anyone with it can use the seats in that group. The cap limits the damage.
 
@@ -238,11 +258,30 @@ EVENT_VENUE=...
 
 `EVENT_START_ISO` and `EVENT_END_ISO` are the start and end in Accra time (which is the same as UTC all year), written exactly like `2026-11-25T18:30`: year, month, day, the letter T, then hours and minutes on the 24-hour clock. From them the email shows the orange date card (day, month, weekday, time), puts the day and month in the subject ("You are confirmed: Content Creators Contest, 25 November"), and adds an **Add to Google Calendar** button and an attached calendar file `educata-2026.ics` for Apple Calendar and Outlook. The calendar parts appear only when both dates are set.
 
-Email event details (an empty setting leaves its line out of the email): `EVENT_TITLE` (must be exactly `Content Creators Contest`, the official title set once in `core.js`; it is used in the subject and the calendar entry), `EVENT_DATE_TIME` (plain text, shown only if `EVENT_START_ISO` is not set), `EVENT_VENUE`, `EVENT_ADDRESS`, `EVENT_DRESS_CODE`, `EVENT_MAP_URL` (must start with `https://`), `EVENT_ORGANISER` (footer, shown exactly as you type it, default Delegation of German Industry and Commerce in Ghana). The old `EVENT_LINE` in `functions/.env` is no longer used by the email (the one in `config.js` still shows on the website). Guests see "Questions? Simply reply to this email." and replies go to `REPLY_TO`.
+Email event details (an empty setting leaves its line out of the email): `EVENT_TITLE` (must be exactly `Content Creators Contest`, the official title set once in `core.js`; it is used in the subject, the calendar entry, the banner's alt text and, if the banner file is missing, as the title on the navy band; the email has no title of its own), `EVENT_DATE_TIME` (plain text, shown only if `EVENT_START_ISO` is not set), `EVENT_VENUE`, `EVENT_ADDRESS`, `EVENT_DRESS_CODE`, `EVENT_MAP_URL` (must start with `https://`), `EVENT_ORGANISER` (footer, shown exactly as you type it, default Delegation of German Industry and Commerce in Ghana). The old `EVENT_LINE` in `functions/.env` is no longer used by the email (the one in `config.js` still shows on the website). Guests see "Questions? Simply reply to this email." and replies go to `REPLY_TO`.
 
-Before every function deploy, run `npm run check:env` in the project root. It fails, and names the settings to fix (never their values), if `EVENT_TITLE` is not exactly the title in `core.js`, if `MAIL_FROM`, `REPLY_TO`, `TRIGGER_REGION`, `PUBLIC_BASE_URL`, `EVENT_TITLE`, `EVENT_VENUE`, `EVENT_START_ISO` or `EVENT_END_ISO` is empty, if a date is not in the form `2026-11-25T18:30` or the end is not after the start, if any setting still contains example text, or if `EVENT_DATE_TIME`, `EVENT_TITLE` or `EVENT_VENUE` contains the word AND (in capitals), Sample or example.
+Before every function deploy, run `npm run check:env` in the project root. It fails, and names the settings to fix (never their values), if `EVENT_TITLE` is not exactly the title in `core.js`, if `MAIL_FROM`, `REPLY_TO`, `TRIGGER_REGION`, `PUBLIC_BASE_URL`, `EVENT_TITLE`, `EVENT_VENUE`, `EVENT_START_ISO` or `EVENT_END_ISO` is empty, if a date is not in the form `2026-11-25T18:30` or the end is not after the start, if any setting still contains example text, or if `EVENT_DATE_TIME`, `EVENT_TITLE` or `EVENT_VENUE` contains the word AND (in capitals), Sample or example, or if any value contains broken characters (see below).
 
-Email images (optional): put `logo-light.png` (white logo, preferred) or `logo.png` (colour logo, shown on a white plate) in `functions\assets`, each a PNG of at most 100 KB, for the logo on the black header band, or `email-header.jpg` (JPEG, at most 140 KB) for a full-width banner instead. The banner is made for you: run `npm run build:email-banner` in the project root (needs Chrome or Edge). It draws `functions\assets\banner-source.html` (the hero artwork, the logo, "Content Creators Contest" in large white letters inside the orange viewfinder corners, and "educataGhana 2026" in orange) at 1200 by 500 pixels and saves `functions\assets\email-header.jpg`. It refuses to save if the title is smaller than 96 pixels, "educataGhana 2026" smaller than 36 pixels, or the file would be 140 KB or more, and `npm test` fails if the saved file is not exactly 1200 by 500 pixels or is 140 KB or more. The line "Delegation of German Industry and Commerce in Ghana presents" is not in the image: the email shows it as text (white on black) directly above the banner, using `EVENT_ORGANISER`. If the file is missing, the email shows a black band with the same words as live text. An image over its limit is left out and the function logs why. To see the email in a browser, run `npm run preview:email` in the project root and open `test\browser\out\email-preview.html` (sample data, your real images). After any change in `functions`, deploy the function again (9e).
+Letters such as ö, é, ɔ and ɛ (for example a venue "Mövenpick Ambassador Hotel Accra"): `functions\.env` must be saved as UTF-8. Never edit it with `Set-Content -Encoding ascii` (turns ö into ?), and never read it with `Get-Content` without `-Encoding UTF8` (Windows PowerShell 5.1 then reads it as ANSI and the next save turns ö into Ã¶). `Out-File` and `>` in Windows PowerShell 5.1 save UTF-16, which `npm run check:env` also refuses. Notepad and VS Code save UTF-8 by default, so editing there is fine. `npm run check:env` fails, naming the setting but never printing its value, if a value contains `??`, a `?` inside a word, the replacement character (a box or diamond with a question mark), or mojibake such as `Ã` followed by another symbol. To set one value from PowerShell, paste this block into the PowerShell window in the project folder (do not save it as a .ps1 file, which Windows PowerShell 5.1 may read as ANSI), with your key and value in the first lines:
+```
+$key   = "EVENT_VENUE"
+$value = "Mövenpick Ambassador Hotel Accra"
+$path  = (Resolve-Path "functions\.env").Path
+$utf8  = New-Object System.Text.UTF8Encoding $false   # UTF-8 without BOM
+$lines = New-Object System.Collections.Generic.List[string]
+$found = $false
+foreach ($l in [System.IO.File]::ReadAllLines($path, $utf8)) { if ($l -like "$key=*") { $lines.Add("$key=$value"); $found = $true } else { $lines.Add($l) } }
+if (-not $found) { $lines.Add("$key=$value") }
+[System.IO.File]::WriteAllLines($path, $lines, $utf8)
+# Code-point check: read it back and list every non-ASCII letter. ö must be U+00F6, é U+00E9, ɔ U+0254, ɛ U+025B.
+$saved = ([System.IO.File]::ReadAllLines($path, $utf8) | Where-Object { $_ -like "$key=*" }) -replace "^$key=", ""
+$saved.ToCharArray() | Where-Object { [int]$_ -gt 127 } | ForEach-Object { "{0}  U+{1:X4}" -f $_, [int]$_ }
+if ($saved -ceq $value) { "OK: $key saved exactly" } else { "PROBLEM: $key is not what you typed. Do not deploy." }
+npm run check:env
+```
+Use it only for event details, never for a password or key: it shows the value's letters on screen.
+
+Email images: put `logo-light.png` (white logo, preferred) or `logo.png` (colour logo, shown on a white plate) in `functions\assets`, each a PNG of at most 100 KB, for the logo on the navy band at the top. The banner is the official artwork `assets\banner-source.jpg`, the same file as on the invite page: run `npm run build:email-banner` in the project root and it checks the file (JPEG, 2.5 to 1, at least 1000 pixels wide, at most 140 KB) and copies it to `functions\assets\email-header.jpg`. If the file is larger than 140 KB, the command re-encodes it once at JPEG quality 82 without metadata; if it is still too large it stops and tells you to save a smaller file (1000 by 400 is enough). `npm test` fails if `email-header.jpg` is not the current copy. The email shows, top to bottom: the logo and the line "Delegation of German Industry and Commerce in Ghana presents" (white text on navy, from `EVENT_ORGANISER`), the banner (if images are blocked, its alt text, the `EVENT_TITLE`, shows in white bold letters on navy), the orange line, then the rest. If the banner file is missing, the email shows the title as white bold text on navy instead. An image over its limit is left out and the function logs why. To see the email, run `npm run preview:email` in the project root: it writes `test\browser\out\email-preview.html` (sample data, your real images) and screenshots `email_preview_390.png` and `email_preview_640.png` in the same folder (needs Chrome or Edge). After any change in `functions`, deploy the function again (9e).
 
 ### 9e. Deploy the function (needs the command line once)
 There is no button for this in the console. In PowerShell, in the unzipped `educata-2026` folder (your project ID is the `projectId` value in `config.js`):
@@ -278,6 +317,35 @@ npx firebase deploy --only functions --project YOUR_PROJECT_ID
 
 Until all of this is done, keep `EMAIL_ENABLED = false`. The guest still gets the QR on the confirmation page, can save it with **Save ticket image**, and can show it at the door.
 
+## Part 10. Scan relay for the staff phones (needs the Blaze plan, like Part 9)
+
+Two small functions let staff phones send scans without a sign-in: `enrollDevice` (sets up a phone with a code from the gate laptop) and `relayScan` (receives a scan from a set-up phone). They are in `functions/relay.js` and deploy together with the email function.
+
+Do these in this order. Each step needs the one before it.
+1. **Rules first.** Firebase console > **Firestore Database > Rules**: paste the whole of `firestore.rules` and click **Publish**. (Or in PowerShell, in the `educata-2026` folder: `npx firebase deploy --only firestore:rules --project educata-2026`.) Without this the gate laptop cannot create phone codes or list phones.
+2. **Functions.** Optional settings in `functions/.env` (see `functions/.env.example`): `MAX_DEVICES=10` and `DEVICE_TTL_HOURS=48`. Then in PowerShell, in the `educata-2026` folder:
+   ```
+   npm run check:env
+   npx firebase deploy --only functions --project educata-2026
+   ```
+   At the end the output prints two lines like `Function URL (enrollDevice(europe-west1)): https://...` and `Function URL (relayScan(europe-west1)): https://...`. Copy the two addresses. If you missed them: Firebase console > **Build > Functions**: each function's row shows its URL (the "Trigger" column). If the deploy warns that it could not make the function public ("allUsers"), your Google Cloud organisation forbids public functions and the phones will get errors: tell Claude Code the exact message.
+3. **Website.** Open `config.js` in Notepad and put the two addresses between the quotes:
+   ```js
+   export const RELAY_URL = "https://...relayScan address...";
+   export const ENROLL_URL = "https://...enrollDevice address...";
+   ```
+   Save, then upload `config.js`, `scan.html`, `door.html` and `gate.js` to GitHub together (Add file > Upload files). Wait 2 minutes and hard-refresh (Ctrl+F5) the gate laptop.
+4. Set up one phone (Phase 8 step 4) and run Phase 5 step 7.
+
+**Security: what each part can do (threat model).**
+- `enrollDevice` is a public address. It answers only "wrong code", "too many tries" or, for a right code, a new phone key (a random 32-byte token). Codes are 6 digits, live 5 minutes, work once, and are stored only as a SHA-256 hash. Guessing is limited to 5 tries a minute per phone and 10 wrong codes in total before a 10-minute pause, so guessing a live code is about a 1 in 100,000 chance. The flip side: someone who knows the address can type wrong codes on purpose and pause phone setup for 10 minutes at a time. That is why phones are set up the day before.
+- `relayScan` is a public address, but without a valid phone key it answers only "not allowed" (401). With a key it answers only "new", or "checked in" with the time (HH:MM), or "not recognised". It never returns a name, email, phone, organisation or group.
+- The phone key is kept in the phone's browser storage and only its SHA-256 hash in Firestore (`devices`). It is never logged.
+- **A stolen key (or an unlocked phone that was set up)** can: send scans, which show cards on the gate laptop (the staff still compare the name and ID before clicking Check in); and learn whether a reference it already knows is checked in, and at what time. Guessing references is slow: 120 requests a minute per phone. It cannot: read any participant details, check anyone in or undo a check-in, set up more phones, or read the participant list.
+- **How to cut it off:** door.html > **Scanning phones** > **Revoke** on that phone (or **Revoke all phones**). It is refused from the next request. Every key also expires on its own after `DEVICE_TTL_HOURS` (48 by default).
+- The functions accept requests from browsers only when they come from `PUBLIC_BASE_URL` (CORS). That stops other websites using them from a browser; it does not stop scripts, which is why the key is what really protects the scans.
+- The old staff accounts (`staff` collection) are no longer needed by any page. Their rule still lets a signed-in staff account write scans. After the new phones work, delete the staff users in **Authentication > Users** and their documents in **Firestore Database > Data > staff**.
+
 ## Cost
 
 Zero on Firebase's free Spark plan. Spark allows 50,000 reads and 20,000 writes a day and cannot bill you. The admin page and the gate laptop each read every registration once when opened (about 300 reads), then only the documents that change. Avoid reloading them repeatedly on event night.
@@ -288,12 +356,17 @@ Zero on Firebase's free Spark plan. Spark allows 50,000 reads and 20,000 writes 
 - Emails are not verified.
 - No confirmation email until the optional step above is done.
 - Guest data is personal data. Delete the Firebase project after the event.
+- A set-up phone's key works until it is revoked or expires (48 hours). Revoke all phones after the event.
+- Scans that say "Not sent" are not kept on the phone. Scan again.
 
 ## If something goes wrong
 
 | Symptom | Likely cause and fix |
 | --- | --- |
 | Admin page blank or sign-in does nothing | Mixed file versions or a missing export in `config.js`. Re-check Phase 2 and upload all four files again. Press F12 and read the Console error. |
+| Phone says "Scanner not configured" | `RELAY_URL` or `ENROLL_URL` is empty in the live `config.js`. Do Part 10 step 3. |
+| Phone setup says "Setup failed" or nothing happens | The functions are not deployed, or the address in `config.js` is wrong. Firebase console > **Build > Functions** > `enrollDevice` > **Logs**. |
+| Gate laptop: "Could not create a code: permission-denied" | The new rules are not published. Part 10 step 1. |
 | "Not on the admin list" | The `admins` document ID is not your User UID. Fix Phase 1 step 8. |
 | Seed button fails with permission-denied | Rules not published, or the admin document is wrong. Check Phase 1 steps 8 and 9. |
 | github.io address shows 404 | Pages not enabled yet or still building. Check Phase 3 step 3 and wait 2 minutes. |
