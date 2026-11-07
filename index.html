@@ -82,6 +82,13 @@
   .qr p{margin:0;font-weight:700}
   .qr span{display:block;color:var(--muted);font-weight:500;font-size:15px;margin-top:4px}
   @media (max-width:420px){.qr{flex-direction:column;align-items:flex-start}}
+  /* Voting link box: same frame as the QR image (2px border, 10px radius), orange because it is information, not a warning. */
+  .votebox{display:flex;gap:12px;align-items:flex-start;margin:14px 0 18px;padding:14px 16px;border:2px solid #EC8223;border-radius:10px;background:var(--white,#FFFFFF);color:var(--text,#111111)}
+  .votebox svg{flex:none;width:24px;height:24px;margin-top:2px}
+  .votebox p{margin:0}
+  .votebox b{white-space:nowrap}
+  .votebox .votehead{font-weight:700;margin-bottom:2px}
+  .votebox .votesmall{color:var(--muted);font-size:15px;margin-top:6px}
   /* confirmation */
   .ref{font:700 clamp(20px,6.4vw,34px)/1.1 var(--font-mono);letter-spacing:var(--ref-spacing);color:var(--orange);margin:8px 0 0;white-space:nowrap}
   .who{font-weight:700;font-size:20px;margin:0}
@@ -208,7 +215,7 @@
 
           <label class="check" for="consent">
             <input type="checkbox" id="consent" name="consent">
-            <span>I agree that the Delegation of German Industry and Commerce in Ghana may store and use these details to organise this event and admit me at the door.</span>
+            <span>I agree that the Delegation of German Industry and Commerce in Ghana may store and use these details to organise this event and admit me at the door, and text me my voting link.</span>
           </label>
           <div class="err" id="err-consent"></div>
 
@@ -235,6 +242,14 @@
         </dl>
         <p id="donetext" class="hint"></p>
         <p id="donenote"></p>
+        <div class="votebox hidden" id="votebox">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <div>
+            <p class="votehead">Your voting link</p>
+            <p>We will text it to <b id="votephone"></b> when voting opens at the event. Keep that phone with you.</p>
+            <p class="votesmall">Wrong number? Email educata@ghana.ahk.de before the event.</p>
+          </div>
+        </div>
         <div class="noprint" style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="ghost" id="save" type="button">Save ticket image</button>
           <button class="ghost" id="print" type="button">Print</button>
@@ -380,6 +395,23 @@ const adapter = {
   },
 };
 
+// Phone for the voting box: country code, a fixed 7 dots, last 4 (+233241234567 -> "+233 ••••••• 4567").
+// No second visible group on purpose: area code and network prefix lengths differ per country (+49 151, +1 415), so guessing them is wrong.
+// Country code length: 1 and 7 are one digit, the listed ones two, all others three (ITU plan). Spaces, dashes, dots and brackets are ignored.
+const CC2 = new Set("20 27 30 31 32 33 34 36 39 40 41 43 44 45 46 47 48 49 51 52 53 54 55 56 57 58 60 61 62 63 64 65 66 81 82 84 86 90 91 92 93 94 95 98".split(" "));
+function maskPhone(raw) {
+  const p = String(raw ?? "").trim();
+  if (!p) return "";
+  let d = p.replace(/[\s\-.()]/g, "");
+  if (/^00\d+$/.test(d)) d = "+" + d.slice(2);                    // 00 is the international prefix: 00233... is +233...
+  else if (/^0\d{9}$/.test(d)) d = "+233" + d.slice(1);           // Ghana local format (0 and 9 digits): assume +233
+  // Anything else without a leading + (for example 12345): the country code is unknown, so show it as typed rather than guess.
+  if (!/^\+\d{8,15}$/.test(d)) return p;
+  const n = d.slice(1), cl = /^[17]/.test(n) ? 1 : CC2.has(n.slice(0, 2)) ? 2 : 3;
+  if (n.length - cl < 7) return p; // too short to mask meaningfully
+  return `+${n.slice(0, cl)} ••••••• ${n.slice(-4)}`;
+}
+
 function clearErrors() { document.querySelectorAll(".err").forEach((el) => (el.textContent = "")); $("formerror").classList.add("hidden"); }
 function banner(msg) { $("formerror").textContent = msg; $("formerror").classList.remove("hidden"); $("formerror").scrollIntoView({ block: "center" }); }
 
@@ -406,6 +438,10 @@ $("regform").addEventListener("submit", async (ev) => {
         : "Show the QR code, or this reference, at the door. No confirmation email is sent, so take a screenshot or print this page now.";
       $("doneref").textContent = r.ref;
       $("donegroup").textContent = $("groupname").textContent;
+      // The stored phone is the trimmed form value (core.js buildRegistration). No phone: no voting box at all.
+      const shownPhone = maskPhone(form.phone);
+      $("votephone").textContent = shownPhone;
+      $("votebox").classList.toggle("hidden", !shownPhone);
       // Confirmation first; the QR follows a moment later (its module is preloaded, so usually at once).
       $("doneqr").classList.add("loading"); document.querySelector(".qr").classList.remove("hidden");
       $("doneqr").onload = () => { $("doneqr").classList.remove("loading"); mark("QR shown"); };
