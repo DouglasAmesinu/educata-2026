@@ -15,8 +15,13 @@ export const EVENT_LINE = "";
 
 // Set to true ONLY after the confirmation email function is deployed and a test email has arrived
 // (see README, Part 5). While false, guests are told to save or print their reference.
-export const EMAIL_ENABLED = false;
+export const EMAIL_ENABLED = true;
 
 // The public address guests will see in invite links, for example "https://educata.yourdomain.com/".
 // Leave "" until your custom domain works; then links use whatever address the admin page was opened from.
 export const PUBLIC_BASE_URL = "https://educata.gabsconnect.com/";
+
+// Scan relay for staff phones (scan.html): the addresses of the two functions, copied from the deploy output
+// (README Part 8). Leave "" until the functions are deployed; scan.html then says "Scanner not configured".
+export const RELAY_URL = "";
+export const ENROLL_URL = "";
