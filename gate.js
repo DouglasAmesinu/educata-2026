@@ -2,6 +2,8 @@
 // One live listener on registrations feeds the participant list, the search and the "In: x / y" counter.
 // A second listener on scans shows a card when a phone scans a QR code (phones send through the relay function).
 // A third listener on devices feeds the "Scanning phones" panel: add a phone with a one-time code, list, revoke.
+// The Walk-in form at the top registers a person standing at the gate and checks them in, in one transaction.
+import { WALKIN_GROUP_NAME, walkInId, validateWalkIn, findGroupByName, makeRef, cryptoRand } from "./core.js";
 import { getDocs, collection, query, where, orderBy, limit, onSnapshot, runTransaction, serverTimestamp, doc, setDoc, updateDoc, writeBatch, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const DONE_MS = 3000; // how long "Checked in. Welcome." stays before the card clears itself
@@ -51,6 +53,14 @@ const CSS = `
 .gate button.undo{margin:4px 0 0 12px;font-size:20px;min-height:56px;padding:12px 24px}
 .gate .gcode{font:800 64px/1 var(--font-mono,monospace);letter-spacing:.15em;color:var(--black,#000);margin:14px 0 6px}
 .gate .devs{margin:12px 0}
+.gate .walkin{margin-top:0}
+.gate .wrow{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.gate .wrow label{flex:1 1 240px;display:flex;flex-direction:column;font-size:18px;font-weight:600;color:var(--black,#000)}
+.gate .wrow input{width:100%;font:inherit;font-size:22px;min-height:56px;padding:10px 14px;margin-top:4px;border:3px solid var(--grey-300,#DBDBDB);border-radius:12px;background:var(--white,#fff);color:var(--text,#2A2A2A)}
+.gate .wrow button.wgo{flex:0 0 auto;min-height:62px;font-size:20px;background:var(--orange,#EC8223);color:var(--black,#000);border:3px solid var(--black,#000)}
+.gate .wrow button.wgo:disabled{opacity:.6;cursor:wait}
+.gate .wmsg{margin:10px 0 0;font-weight:700;font-size:20px;color:var(--text,#2A2A2A)}.gate .wmsg:empty{display:none}
+.gate .wmsg.ok{color:var(--ok,#1F7A4D)}.gate .wmsg.bad{color:var(--bad,#B3261E)}
 .gate .dev{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--grey-300,#DBDBDB)}
 .gate .dev .rname{overflow-wrap:anywhere}
 /* Narrow screens (phones, tablets): a name never breaks inside a word; its size follows its length (see fitName). */
@@ -67,6 +77,11 @@ const CSS = `
 // The bar (sound, counter, Hide list) can live in the page header (door.html passes `bar`) so there is one black header.
 const BAR = `<div class="bar"><label><input type="checkbox" id="sound"> Sound on new scan</label><span class="gtop"><button id="hidelist">Hide list</button><span class="count" id="count"></span></span></div>`;
 const HTML = `
+<form class="gpanel walkin" id="walkin" autocomplete="off"><p style="margin-top:0"><b>Walk-in</b> <span class="rmeta" id="wnote"></span></p>
+  <div class="wrow"><label for="wname">Full name<input type="text" id="wname" maxlength="100" autocapitalize="words" spellcheck="false"></label>
+  <label for="worg">Organisation (optional)<input type="text" id="worg" maxlength="120" spellcheck="false"></label>
+  <button type="submit" class="wgo" id="wgo">Register and check in</button></div>
+  <p class="wmsg" id="wmsg" role="status"></p></form>
 <div class="wait" id="wait">Waiting for scans. Participants show their QR code, staff scan it with a phone camera.</div>
 <div id="cards"></div>
 <div class="gpanel" id="listpanel"><p style="margin-top:0"><b>Participants <span id="listnote">(loading)</span></b></p>
@@ -154,7 +169,7 @@ export function mountGate(root, { db, user, bar = null }) {
         st.textContent = e.state === "done" ? "Checked in. Welcome." : e.state === "recent" ? "Just checked in at " + (toDate(e.reg.checkedInAt) || new Date()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }) : e.state === "dup" ? "ALREADY CHECKED IN at " + fmt(e.reg.checkedInAt) + ". Check ID before admitting again." : e.state === "undone" ? "Check-in undone. Not checked in." : "Not checked in yet. Compare the name with the participant.";
         card.append(st);
         const dl = el("dl");
-        [["Group", gname(e.reg.gid)], ["Email", e.reg.email], ["Phone", e.reg.phone || "none"], ["Reference", e.reg.ref]].forEach(([k, v]) => dl.append(el("dt", k), el("dd", v, k === "Reference" ? "mono" : null)));
+        [["Group", gname(e.reg.gid)], ["Email", e.reg.email || (e.reg.walkIn ? "none (walk-in)" : "none")], ["Phone", e.reg.phone || "none"], ["Reference", e.reg.ref]].forEach(([k, v]) => dl.append(el("dt", k), el("dd", v, k === "Reference" ? "mono" : null)));
         card.append(dl);
         if ((e.state === "new" || e.state === "undone") && !e.busy) { const b = el("button", "Check in", "bigbtn"); b.onclick = () => checkIn(e); card.append(b); }
         if (e.error) card.append(el("p", e.error, "gerr"));
@@ -236,6 +251,51 @@ export function mountGate(root, { db, user, bar = null }) {
     if (!primed) { primed = true; return; }
     snap.docChanges().forEach((ch) => { if (ch.type === "added") { const d = ch.doc.data(); if (d && d.ref) lookup(d.ref, true); } });
   }, (e) => { $("wait").textContent = "Scan relay error: " + (e.code || e.message); });
+
+  // ---- Walk-in: name and organisation, registered under WALKIN_GROUP_NAME and checked in, in ONE transaction ----
+  // The transaction re-reads the group, so two laptops adding walk-ins at once can never pass the cap. Offline it fails
+  // with a clear message instead of waiting (transactions need the server), so nobody is told "checked in" wrongly.
+  $("wnote").textContent = `(${WALKIN_GROUP_NAME}, checked in at once, no ticket)`;
+  let wbusy = false;
+  const wsay = (t, cls = "") => { $("wmsg").textContent = t; $("wmsg").className = "wmsg " + cls; };
+  async function walkInGroup() {
+    const known = findGroupByName(Object.entries(gnames).map(([id, name]) => ({ id, name })));
+    if (known.gid) return known;
+    const s = await getDocs(collection(db, "groups")); // not loaded yet, or the group was added after this page opened
+    s.docs.forEach((d) => (gnames[d.id] = d.data().name));
+    return findGroupByName(s.docs.map((d) => ({ id: d.id, name: d.data().name })));
+  }
+  $("walkin").onsubmit = async (ev) => {
+    ev.preventDefault();
+    if (wbusy) return;
+    const v = validateWalkIn({ name: $("wname").value, org: $("worg").value });
+    if (!v.ok) { wsay(v.error, "bad"); $("wname").focus(); return; }
+    wbusy = true; $("wgo").disabled = true; wsay("Saving...");
+    try {
+      const grp = await walkInGroup();
+      if (grp.error) return wsay(grp.error + " Not registered.", "bad");
+      let out = null;
+      for (let i = 0; i < 3 && !out; i++) { // a new reference that already exists (about 1 in 700 million): take another
+        const ref = makeRef(cryptoRand), id = walkInId(ref);
+        out = await runTransaction(db, async (tx) => {
+          const gRef = doc(db, "groups", grp.gid), rRef = doc(db, "registrations", id);
+          const [gs, rs] = await Promise.all([tx.get(gRef), tx.get(rRef)]);
+          const g = gs.data();
+          if (!g) return { missing: true };
+          if (rs.exists()) return null;
+          if (g.count >= g.cap) return { full: true, g };
+          tx.update(gRef, { count: g.count + 1, lastReg: id });
+          tx.set(rRef, { gid: grp.gid, name: v.clean.name, org: v.clean.org, ref, createdAt: serverTimestamp(), walkIn: true, checkedIn: true, checkedInAt: serverTimestamp(), checkedInBy: user.email });
+          return { g: { ...g, count: g.count + 1 } };
+        });
+      }
+      if (!out) wsay("Not saved. Try again.", "bad");
+      else if (out.missing) wsay(`The ${WALKIN_GROUP_NAME} group no longer exists. Not registered.`, "bad");
+      else if (out.full) wsay(`${WALKIN_GROUP_NAME} is full (${out.g.count} of ${out.g.cap}). Not registered. To admit more, raise its cap on the Admin page (Set cap).`, "bad");
+      else { wsay(`Checked in: ${v.clean.name} (${WALKIN_GROUP_NAME}, ${out.g.count} of ${out.g.cap})`, "ok"); $("wname").value = ""; $("worg").value = ""; $("wname").focus(); }
+    } catch (err) { wsay("Not saved: " + (err.code || err.message) + ". Nothing was registered. Check the connection and try again.", "bad"); }
+    finally { wbusy = false; $("wgo").disabled = false; }
+  };
 
   // ---- Scanning phones: enrol with a one-time code, list live, revoke ----
   let devs = [], code = null, codeTimer = null;

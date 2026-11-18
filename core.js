@@ -91,6 +91,29 @@ else if (phone.length > 30) errors.phone = "Phone number is too long.";
   return { ok: Object.keys(errors).length === 0, errors, clean: { name, email, phone, org } };
 }
 
+// Walk-ins at the gate (door.html): registered and checked in at once, under this group, with no email, phone or QR.
+// The group is found by this name (its id was made at random by admin.html Add group). Only its cap stops a walk-in:
+// a closed invite link does not, because closing it is about online sign-ups.
+export const WALKIN_GROUP_NAME = "General Admission";
+// The document id. It has no @, so it can never be the same as an email address (the id of every other registration).
+export const walkInId = (ref) => "walkin-" + ref.toLowerCase();
+// Organisation is optional: a plus-one often has none, and the gate must be quick.
+export function validateWalkIn(f) {
+  const name = String(f.name ?? "").trim().replace(/\s+/g, " ");
+  const org = String(f.org ?? "").trim().replace(/\s+/g, " ");
+  let error = "";
+  if (name.length < 2 || name.length > 100) error = "Enter the full name (2 to 100 characters).";
+  else if (org.length > 120) error = "Organisation is too long (at most 120 characters).";
+  return { ok: !error, error, clean: { name, org } };
+}
+// groups: [{id, name}]. Returns the one id whose name matches (ignoring case and extra spaces), or an error message.
+export function findGroupByName(groups, wanted = WALKIN_GROUP_NAME) {
+  const norm = (s) => String(s ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  const hits = groups.filter((g) => norm(g.name) === norm(wanted));
+  if (hits.length === 1) return { gid: hits[0].id };
+  return { error: hits.length ? `There are ${hits.length} groups named ${wanted}. Rename all but one on the Admin page.` : `No group named ${wanted}. Add it on the Admin page.` };
+}
+
 export function availability(group) {
   if (!group) return { state: "unknown", remaining: 0 };
   const remaining = Math.max(0, group.cap - group.count);

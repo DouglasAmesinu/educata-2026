@@ -188,7 +188,7 @@ function renderRegs() {
   const tb = $("regs").tBodies[0]; tb.replaceChildren();
   for (const r of rows) {
     const tr = el("tr");
-    [r.ref, r.name, r.email, nameOf[r.gid] || r.gid, r.org || "", r.phone || ""].forEach((v) => tr.append(el("td", v)));
+    [r.ref, r.name, r.email || (r.walkIn ? "(walk-in, no email)" : ""), nameOf[r.gid] || r.gid, r.org || "", r.phone || ""].forEach((v) => tr.append(el("td", v)));
     tr.append(el("td", r.checkedIn ? ("Checked in " + hhmm(r.checkedInAt)).trim() : "")); // read-only: check-in happens only on door.html
     const del = el("td"); const db_ = el("button", "Remove", "danger");
     db_.onclick = async () => {
@@ -225,8 +225,8 @@ $("recon").onclick = async () => {
 
 $("csv").onclick = () => {
   const nameOf = Object.fromEntries(groups.map((g) => [g.id, g.name]));
-  const rows = regs.map((r) => ({ ref: r.ref, name: r.name, email: r.email, phone: r.phone || "", org: r.org || "", group: nameOf[r.gid] || r.gid, checkedIn: r.checkedIn ? "yes" : "no" }));
-  const csv = toCSV(rows, ["ref", "name", "email", "phone", "org", "group", "checkedIn"]);
+  const rows = regs.map((r) => ({ ref: r.ref, name: r.name, email: r.email || "", phone: r.phone || "", org: r.org || "", group: nameOf[r.gid] || r.gid, checkedIn: r.checkedIn ? "yes" : "no", walkIn: r.walkIn ? "yes" : "no" }));
+  const csv = toCSV(rows, ["ref", "name", "email", "phone", "org", "group", "checkedIn", "walkIn"]);
   const a = el("a"); a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })); a.download = "educata-2026-registrations.csv"; a.click(); URL.revokeObjectURL(a.href);
 };
 </script>
