@@ -23,5 +23,5 @@ export const PUBLIC_BASE_URL = "https://educata.gabsconnect.com/";
 
 // Scan relay for staff phones (scan.html): the addresses of the two functions, copied from the deploy output
 // (README Part 8). Leave "" until the functions are deployed; scan.html then says "Scanner not configured".
-export const RELAY_URL = "";
-export const ENROLL_URL = "";
+export const RELAY_URL = "https://europe-west1-educata-2026.cloudfunctions.net/relayScan";
+export const ENROLL_URL = "https://europe-west1-educata-2026.cloudfunctions.net/enrollDevice";
